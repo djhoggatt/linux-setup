@@ -1,0 +1,301 @@
+# ~/.bashrc: executed by bash(1) for non-login shells.
+# see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
+# for examples
+
+# If not running interactively, don't do anything
+case $- in
+    *i*) ;;
+      *) return;;
+esac
+
+# don't put duplicate lines or lines starting with space in the history.
+# See bash(1) for more options
+HISTCONTROL=ignoreboth
+
+# append to the history file, don't overwrite it
+shopt -s histappend
+
+# for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
+HISTSIZE=1000
+HISTFILESIZE=2000
+
+# check the window size after each command and, if necessary,
+# update the values of LINES and COLUMNS.
+shopt -s checkwinsize
+
+# If set, the pattern "**" used in a pathname expansion context will
+# match all files and zero or more directories and subdirectories.
+#shopt -s globstar
+
+# make less more friendly for non-text input files, see lesspipe(1)
+[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+
+# set variable identifying the chroot you work in (used in the prompt below)
+if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
+    debian_chroot=$(cat /etc/debian_chroot)
+fi
+
+# set a fancy prompt (non-color, unless we know we "want" color)
+case "$TERM" in
+    xterm-color|*-256color) color_prompt=yes;;
+esac
+
+# uncomment for a colored prompt, if the terminal has the capability; turned
+# off by default to not distract the user: the focus in a terminal window
+# should be on the output of commands, not on the prompt
+#force_color_prompt=yes
+
+if [ -n "$force_color_prompt" ]; then
+    if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
+	# We have color support; assume it's compliant with Ecma-48
+	# (ISO/IEC-6429). (Lack of such support is extremely rare, and such
+	# a case would tend to support setf rather than setaf.)
+	color_prompt=yes
+    else
+	color_prompt=
+    fi
+fi
+
+if [ "$color_prompt" = yes ]; then
+    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+else
+    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
+fi
+unset color_prompt force_color_prompt
+
+# If this is an xterm set the title to user@host:dir
+case "$TERM" in
+xterm*|rxvt*)
+    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
+    ;;
+*)
+    ;;
+esac
+
+# enable color support of ls and also add handy aliases
+if [ -x /usr/bin/dircolors ]; then
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+    alias ls='ls --color=auto'
+    #alias dir='dir --color=auto'
+    #alias vdir='vdir --color=auto'
+
+    alias grep='grep --color=auto'
+    alias fgrep='fgrep --color=auto'
+    alias egrep='egrep --color=auto'
+fi
+
+# colored GCC warnings and errors
+#export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
+
+# some more ls aliases
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+
+# Add an "alert" alias for long running commands.  Use like so:
+#   sleep 10; alert
+alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
+
+# Alias definitions.
+# You may want to put all your additions into a separate file like
+# ~/.bash_aliases, instead of adding them here directly.
+# See /usr/share/doc/bash-doc/examples in the bash-doc package.
+
+if [ -f ~/.bash_aliases ]; then
+    . ~/.bash_aliases
+fi
+
+# enable programmable completion features (you don't need to enable
+# this, if it's already enabled in /etc/bash.bashrc and /etc/profile
+# sources /etc/bash.bashrc).
+if ! shopt -oq posix; then
+  if [ -f /usr/share/bash-completion/bash_completion ]; then
+    . /usr/share/bash-completion/bash_completion
+  elif [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+  fi
+fi
+
+# Invoke tab-completion script to be sourced with Bash shell.
+# Known to work on Bash 3.x, untested on 4.x.
+
+_complete_invoke() {
+    local candidates
+
+    # COMP_WORDS contains the entire command string up til now (including
+    # program name).
+    # We hand it to Invoke so it can figure out the current context: spit back
+    # core options, task names, the current task's options, or some combo.
+    candidates=`invoke --complete -- ${COMP_WORDS[*]}`
+
+    # `compgen -W` takes list of valid options & a partial word & spits back
+    # possible matches. Necessary for any partial word completions (vs
+    # completions performed when no partial words are present).
+    #
+    # $2 is the current word or token being tabbed on, either empty string or a
+    # partial word, and thus wants to be compgen'd to arrive at some subset of
+    # our candidate list which actually matches.
+    #
+    # COMPREPLY is the list of valid completions handed back to `complete`.
+    COMPREPLY=( $(compgen -W "${candidates}" -- $2) )
+}
+
+
+# Tell shell builtin to use the above for completing our invocations.
+# * -F: use given function name to generate completions.
+# * -o default: when function generates no results, use filenames.
+# * positional args: program names to complete for.
+complete -F _complete_invoke -o default invoke inv
+
+# vim: set ft=sh :
+
+ggraph() {
+  while :; do
+    # 1) pick commit (all branches, colored graph; full hash hidden after TAB)
+    local row commit
+    row="$(
+      git log --all --color=always --date=short --decorate --graph \
+          --pretty=format:'%C(yellow)%h%Creset %Cgreen%ad%Creset %Cblue%an%Creset %C(auto)%d%Creset %s%x09%H' \
+      | fzf --ansi --no-sort --reverse --delimiter=$'\t' --with-nth=1
+    )" || break
+    [ -n "$row" ] || break
+    commit="${row##*$'\t'}"
+
+    # 2) inner loop: pick files from that commit as many times as you want
+    while :; do
+      local file parent
+      file="$(
+        git show --name-only --pretty='' "$commit" \
+        | fzf --ansi --reverse --prompt='file> '
+      )" || break    # exit file fzf → go back to commit fzf
+      [ -n "$file" ] || break
+
+      # parent (empty if root commit)
+      if git rev-parse "${commit}^" >/dev/null 2>&1; then
+        parent="${commit}^"
+      else
+        parent=""
+      fi
+
+      # 3) vimdiff parent:left vs commit:right (handles adds/deletes/renames)
+      if [ -n "$parent" ]; then
+        nvim -d -c 'set diffopt+=vertical,linematch:60,context:99999' \
+          <(git show "${parent}:${file}" 2>/dev/null || printf '') \
+          <(git show "${commit}:${file}" 2>/dev/null || printf '')
+      else
+        nvim -d -c 'set diffopt+=vertical,linematch:60,context:99999' \
+          <(printf '') \
+          <(git show "${commit}:${file}" 2>/dev/null || printf '')
+      fi
+      # after :q, we loop back to the **file** picker
+    done
+    # after exiting the file picker, we loop back to the **commit** picker
+  done
+}
+
+gdiffu() (
+  set +e  # keep looping even if a command returns non-zero
+  local repo tmp
+  repo="$(git rev-parse --show-toplevel)" || exit 1
+  tmp="$repo/.git/.gdiff/tmp-$$"
+
+  while :; do
+    # fresh list each time: unstaged tracked + untracked
+    file="$(
+      { git diff --name-only --relative;
+        git ls-files --others --exclude-standard; } \
+      | sort -u | fzf --ansi --reverse --prompt='unstaged> '
+    )" || break
+    [ -n "$file" ] || break
+
+    mkdir -p "$tmp/left/$(dirname "$file")"
+
+    # LEFT = index snapshot (or empty if not in index yet)
+    if git cat-file -e ":$file" 2>/dev/null; then
+      git show ":$file" > "$tmp/left/$file"
+    else
+      : > "$tmp/left/$file"
+    fi
+
+    # RIGHT = real worktree path (editable; may not exist yet)
+    nvim -d -c 'set diffopt+=vertical,context:99999' "$tmp/left/$file" "$repo/$file"
+    # after :q you’re back here → re-run picker
+  done
+)
+
+gdiffs() (
+  set +e
+  local repo tmp
+  repo="$(git rev-parse --show-toplevel)" || exit 1
+  tmp="$repo/.git/.gdiff/tmp-$$"
+
+  while :; do
+    # fresh list each time: staged only
+    file="$(git diff --cached --name-only --relative | fzf --ansi --reverse --prompt='staged> ')" || break
+    [ -n "$file" ] || break
+
+    mkdir -p "$tmp/left/$(dirname "$file")" "$tmp/right/$(dirname "$file")"
+
+    # LEFT = HEAD snapshot (empty if new file)
+    if git cat-file -e "HEAD:$file" 2>/dev/null; then
+      git show "HEAD:$file" > "$tmp/left/$file"
+    else
+      : > "$tmp/left/$file"
+    fi
+
+    # RIGHT = index snapshot
+    git show ":$file" > "$tmp/right/$file"
+
+    nvim -d -c 'set diffopt+=vertical,context:99999' "$tmp/left/$file" "$tmp/right/$file"
+    # after :q you’re back here → re-run picker
+  done
+)
+
+gfilelog() {
+  local file
+  if [ -n "${1-}" ]; then
+    file="$1"
+  else
+    # pick a tracked file; adjust if you want to include untracked
+    file="$(git ls-files | fzf --ansi --reverse --prompt='file> ')" || return
+  fi
+
+  echo "$file"
+
+  while :; do
+    # build the file's history (follows renames), show graph line, hide full hash after TAB
+    local commits row commit parent
+    commits="$(
+      git log --follow --color=always --date=short --decorate \
+        --pretty=format:'%C(yellow)%h%Creset %Cgreen%ad%Creset %Cblue%an%Creset %C(auto)%d%Creset %s%x09%H' $file
+    )"
+    [ -n "$commits" ] || { echo "No history for: $file"; return; }
+
+    row="$(fzf --ansi --no-sort --reverse --delimiter=$'\t' --with-nth=1 <<<"$commits")" || break
+    [ -n "$row" ] || break
+    commit="${row##*$'\t'}"
+
+    # parent (empty if root commit)
+    if git rev-parse "${commit}^" >/dev/null 2>&1; then
+      parent="${commit}^"
+    else
+      parent=""
+    fi
+
+    # open vimdiff: parent:left vs commit:right (handles adds/deletes/renames)
+    if [ -n "$parent" ]; then
+      nvim -d -c 'set diffopt+=vertical,linematch:60,context:99999' \
+        <(git show "${parent}:${file}" 2>/dev/null || printf '') \
+        <(git show "${commit}:${file}" 2>/dev/null || printf '')
+    else
+      nvim -d -c 'set diffopt+=vertical,linematch:60,context:99999' \
+        <(printf '') \
+        <(git show "${commit}:${file}" 2>/dev/null || printf '')
+    fi
+    # after :q, return to the file's commit list
+  done
+}
+
+set -o vi
+alias vim=nvim
+export PATH="$PATH:/home/dhoggatt/arm-none-eabi/arm-gnu-toolchain-12.3.rel1-x86_64-arm-none-eabi/bin"

@@ -1,0 +1,11 @@
+[user]
+	name = Denver Hoggatt
+    email = denver.hoggatt@prodatakey.com
+[core]
+    editor = nvim
+[diff]
+    tool = nvimdiff
+[alias]
+  diffu = "!bash -lc 'test -f ~/.bashrc && source ~/.bashrc; gdiffu \"$@\"' _"
+  diffs = "!bash -lc 'test -f ~/.bashrc && source ~/.bashrc; gdiffs \"$@\"' _"
+  graph = "!bash -lc 'test -f ~/.bashrc && source ~/.bashrc; ggraph \"$@\"' _"
