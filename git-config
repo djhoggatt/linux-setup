@@ -1,11 +1,18 @@
 [user]
 	name = Denver Hoggatt
-    email = denver.hoggatt@prodatakey.com
+    email = djhoggatt@gmail.com
 [core]
-    editor = nvim
+	editor = nvim
 [diff]
     tool = nvimdiff
+[merge]
+	tool = nvimdiff
+[help]
+	autocorrect = 20
+[submodule]
+	recurse = false
 [alias]
-  diffu = "!bash -lc 'test -f ~/.bashrc && source ~/.bashrc; gdiffu \"$@\"' _"
-  diffs = "!bash -lc 'test -f ~/.bashrc && source ~/.bashrc; gdiffs \"$@\"' _"
-  graph = "!bash -lc 'test -f ~/.bashrc && source ~/.bashrc; ggraph \"$@\"' _"
+	cleanup = ! git branch -d `git branch --merged | grep -v \\*`
+	pup = !git restore . && git pull && git submodule init && git submodule update && git submodule status && git status
+[difftool "vscode"]
+	cmd = code --wait --reuse-window --diff "$LOCAL" "$REMOTE"
