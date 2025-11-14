@@ -87,3 +87,15 @@ sudo rm -rf ./root-and-rail
 # Motivation: All I want is a simple serial terminal that I can run from the command line
 # with minimal configuration.
 sudo apt install -y microcom
+
+# Install go-grip
+# Motivation: Getting a good markdown viewer is actually surprisingly difficult. In particular,
+# getting something with native mermaid support is quite difficult. It may be best to switch to
+# pandoc -> pdf -> pdf TUI viewer, but this requires an external mermaid filter for pandoc (also 
+# latex, but that's fine), which I was having trouble setting up. The easiest thing, that really 
+# "just worked" was go-grip. Regular grip also has mermaid issues. This does open up a browser
+# window. I tried using it in conjunction with browsesh, but browsesh had it's own issues, and
+# the rendering was very poor.
+sudo apt install -y golang-go
+go install github.com/chrishrb/go-grip@latest
+sudo ln -s ~/go/bin/go-grip /bin/go-grip
