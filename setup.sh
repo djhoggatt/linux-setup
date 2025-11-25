@@ -64,6 +64,9 @@ sudo apt install -y JLink_Linux_V872_x86_64.deb
 # Motivation: I do a lot of scripting in python, and invoke makes it easy to create command line
 # tools for running common tasks.
 sudo apt install -y python3-invoke
+mkdir ~/tasks
+cp .invoke.yaml ~/
+cp *tasks.py ~/tasks/
 
 # Install Zig
 # Motivation: Zig is, in my opinion, the best replacement for C. It adds in all of the features that
