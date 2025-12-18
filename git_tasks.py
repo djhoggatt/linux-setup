@@ -40,9 +40,10 @@ def _commit_file_diff(ctx, commit, file):
 
     with NamedTemporaryFile(mode='w', delete=True) as left_file:
         with NamedTemporaryFile(mode='w', delete=True) as right_file:
-            result = ctx.run(f"git show {commit}^:{file} > {left_file.name}")
-            if result.exited != 0:
-                return
+            try:
+                result = ctx.run(f"git show {commit}^:{file} > {left_file.name}")
+            except:
+                left_file.write(""); # File might not exist, so just compare it with empty
 
             result = ctx.run(f"git show {commit}:{file} > {right_file.name}")
             if result.exited != 0:

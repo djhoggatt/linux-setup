@@ -88,6 +88,23 @@ vim.cmd.colorscheme("rose-pine")
 vim.api.nvim_set_hl(0, "Normal", { bg = "none" })
 vim.api.nvim_set_hl(0, "NormalFloat", { bg = "none" })
 
+local telescope = require("telescope")
+local actions = require("telescope.actions")
+telescope.setup({
+  defaults = {
+    history = {
+      path = vim.fn.stdpath("data") .. "/telescope_history",
+      limit = 100,
+    },
+    mappings = {
+      i = {
+        ["<Up>"] = actions.cycle_history_prev,
+        ["<Down>"] = actions.cycle_history_next,
+      },
+    },
+  },
+})
+
 ------------------------------------- Key Remappings ----------------------------------------------
 
 vim.keymap.set("i", "<C-v>", "<C-r>+", { noremap = true, silent = true })
