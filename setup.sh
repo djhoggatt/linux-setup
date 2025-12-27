@@ -42,6 +42,7 @@ sudo cp git-config ~/.gitconfig
 # up the exact way I want it, and is portable across different systems. Vim isn't for everyone, but
 # I'm used to it, and normal vim isn't as easy to configure as nvim.
 sudo snap install --edge --classic nvim
+mkdir -p ~/.config/nvim/
 sudo cp nvim-init.lua ~/.config/nvim/init.lua
 
 # Install Native gcc
@@ -106,5 +107,5 @@ sudo ln -s ~/go/bin/go-grip /bin/go-grip
 
 # Setup git credentials
 #
-git config --global user.name djhoggatt
-ssh-keygen -t ed25519 -C "djhoggatt@gmail.com"
+#git config --global user.name djhoggatt
+#ssh-keygen -t ed25519 -C "djhoggatt@gmail.com"
