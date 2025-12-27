@@ -8,7 +8,8 @@ sudo cp bash-rc ~/.bashrc
 # keyboard navigation is not possible. Chromium based browsers support the vimium extension, which
 # adds most of the functionality that qute-browser has, while also being compatible with most websites.
 sudo snap install brave
-cfg="$HOME/.config/BraveSoftware/Brave-Browser/External Extensions"
+#cfg="$HOME/.config/BraveSoftware/Brave-Browser/External Extensions"
+cfg="$HOME/snap/brave/current/.config/BraveSoftware/Brave-Browser/External Extensions"
 mkdir -p "$cfg"
 
 # Vimium
@@ -24,7 +25,8 @@ EOF
 # Install Ghostty, and ghostty config
 # Motivation: Ghostty is super easy to configure, and has enough native features such that I don't
 # need other applications (e.g. tmux or screen).
-sudo snap install ghostty
+sudo snap install --classic ghostty
+sudo mkdir ~/.config/ghostty/
 sudo cp ghostty-config ~/.config/ghostty/config
 
 # Install git, and git config
@@ -58,7 +60,7 @@ sudo apt install ninja-build meson -y
 # Install JLink
 # Motivation: JLink programmers/debuggers aren't perfect, but I've had good luck with them
 # and they support a wide variety of devices.
-sudo apt install -y JLink_Linux_V872_x86_64.deb
+sudo apt install -y ./JLink_Linux_V872_x86_64.deb
 
 # Install invoke
 # Motivation: I do a lot of scripting in python, and invoke makes it easy to create command line
@@ -81,9 +83,8 @@ sudo apt install -y nodejs npm
 # Motivation: I like rotating backgrounds for variety, and variety makes it easy to do so.
 sudo apt install -y variety
 mkdir ~/backgrounds
-mkdir root-and-rail
-git clone https://github.com/djhoggatt/root-and-rail ./root-and-rail
-sudo cp ./root-and-rail/images /usr/local/bin/
+git clone https://github.com/djhoggatt/root-and-rail
+sudo cp ./root-and-rail/images/* ~/backgrounds/
 sudo rm -rf ./root-and-rail
 
 # Install microcom
@@ -102,3 +103,8 @@ sudo apt install -y microcom
 sudo apt install -y golang-go
 go install github.com/chrishrb/go-grip@latest
 sudo ln -s ~/go/bin/go-grip /bin/go-grip
+
+# Setup git credentials
+#
+git config --global user.name djhoggatt
+ssh-keygen -t ed25519 -C "djhoggatt@gmail.com"
