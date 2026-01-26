@@ -11,6 +11,7 @@
 
 from invoke import task
 from invoke import Collection
+from sys import modules
 
 from git_tasks import git_tasks
 
