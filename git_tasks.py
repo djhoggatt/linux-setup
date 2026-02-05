@@ -27,10 +27,13 @@ from invoke import Collection
 
 
 def _do_diff(ctx, left_file, right_file):
-    ctx.run("nvim -d "
-            "-c 'set diffopt+=vertical,linematch:60,context:99999' "
-            f"{left_file} {right_file}"
-            , pty=True, echo=True)
+    try:
+        ctx.run("nvr --servername /tmp/nvim.sock -d "
+                "-c 'set diffopt+=vertical,linematch:60,context:99999' "
+                f"{left_file} {right_file}"
+                , pty=True, echo=True)
+    except:
+        pass
 
 
 def _commit_file_diff(ctx, commit, file):

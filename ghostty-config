@@ -63,6 +63,8 @@ keybind = ctrl+b>b=new_split:right
 keybind = ctrl+b>v=new_split:down
 keybind = ctrl+b>w=new_window
 
+keybind = ctrl+b>e=equalize_splits
+
 # Moving Between Panes
 keybind = ctrl+b>left=goto_split:left
 keybind = ctrl+b>right=goto_split:right
@@ -85,5 +87,9 @@ keybind = ctrl+b>r=reload_config
 keybind = ctrl+b>ctrl+b=text:\x02
 
 # Copy/Paste
-keybind = ctrl+c=copy_to_clipboard
+keybind = performable:ctrl+c=copy_to_clipboard
 keybind = ctrl+v=paste_from_clipboard
+
+# Scrolling
+keybind = ctrl+j=scroll_page_fractional:0.5
+keybind = ctrl+k=scroll_page_fractional:-0.5
