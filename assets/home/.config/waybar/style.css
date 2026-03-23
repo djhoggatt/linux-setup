@@ -1,0 +1,29 @@
+* {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+window#waybar {
+  background: rgba(16, 18, 24, 0.82);
+  color: #e6e6e6;
+}
+
+#tags,
+#window,
+#clock,
+#network {
+  background: rgba(30, 34, 42, 0.75);
+  margin: 4px 4px;
+  padding: 2px 10px;
+  border-radius: 8px;
+}
+
+#tags button {
+  color: #d8dee9;
+  padding: 0 6px;
+  border-radius: 6px;
+}
+
+#tags button.focused {
+  background: rgba(136, 192, 208, 0.35);
+}

@@ -1,0 +1,18 @@
+[user]
+	name = Denver Hoggatt
+    email = djhoggatt@gmail.com
+[core]
+	editor = nvim
+[diff]
+    tool = nvimdiff
+[merge]
+	tool = nvimdiff
+[help]
+	autocorrect = 20
+[submodule]
+	recurse = false
+[alias]
+	cleanup = ! git branch -d `git branch --merged | grep -v \\*`
+	pup = !git restore . && git pull && git submodule init && git submodule update && git submodule status && git status
+[difftool "vscode"]
+	cmd = code --wait --reuse-window --diff "$LOCAL" "$REMOTE"

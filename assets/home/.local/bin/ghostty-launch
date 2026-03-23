@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if /usr/local/bin/ghostty +new-window >/dev/null 2>&1; then
+    exit 0
+fi
+
+exec /usr/local/bin/ghostty

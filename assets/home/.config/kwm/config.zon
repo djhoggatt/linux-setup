@@ -1,0 +1,58 @@
+.{
+    .background = null,
+
+    .startup_cmds = .{
+        .{ "waybar" },
+        .{ "wallpaper-rotate" },
+    },
+
+    .bindings = .{
+        .key = .{
+            .{
+                .keysym = "Super_L",
+                .modifiers = .{},
+                .event = .{
+                    .click = .{
+                        .released = .{
+                            .spawn = .{ .argv = .{ "rofi", "-show", "drun" } },
+                        },
+                    },
+                },
+            },
+            .{
+                .keysym = "Super_R",
+                .modifiers = .{},
+                .event = .{
+                    .click = .{
+                        .released = .{
+                            .spawn = .{ .argv = .{ "rofi", "-show", "drun" } },
+                        },
+                    },
+                },
+            },
+            .{
+                .keysym = "Print",
+                .modifiers = .{},
+                .event = .{
+                    .click = .{
+                        .pressed = .{
+                            .spawn = .{ .argv = .{ "screenshot-region" } },
+                        },
+                    },
+                },
+            },
+            .{
+                .keysym = "space",
+                .modifiers = .{ .mod4 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{
+                            .spawn = .{ .argv = .{ "rofi", "-show", "drun" } },
+                        },
+                    },
+                },
+            },
+        },
+        .pointer = .{},
+    },
+}

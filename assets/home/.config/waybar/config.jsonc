@@ -1,0 +1,18 @@
+{
+  "layer": "top",
+  "position": "top",
+  "modules-left": ["river/tags", "river/window"],
+  "modules-center": ["clock"],
+  "modules-right": ["network"],
+  "river/tags": {
+    "num-tags": 9
+  },
+  "clock": {
+    "format": "{:%a %Y-%m-%d %H:%M}"
+  },
+  "network": {
+    "format-wifi": "wifi {essid}",
+    "format-ethernet": "wired",
+    "format-disconnected": "offline"
+  }
+}
