@@ -21,6 +21,13 @@ from invoke import Collection
 # --------------------------------------------------------------------------------------------------
 
 
+EMPTY_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+COMMIT_FORMAT = (
+    "%C(yellow)%h%Creset %Cgreen%ad%Creset %Cblue%an%Creset "
+    "%C(auto)%d%Creset %s%x09%H"
+)
+
+
 # --------------------------------------------------------------------------------------------------
 # Class/Functions
 # --------------------------------------------------------------------------------------------------
@@ -28,12 +35,235 @@ from invoke import Collection
 
 def _do_diff(ctx, left_file, right_file):
     try:
-        ctx.run("nvr --servername /tmp/nvim.sock -d "
-                "-c 'set diffopt+=vertical,linematch:60,context:99999' "
-                f"{left_file} {right_file}"
-                , pty=True, echo=True)
+        subprocess.run(
+            [
+                "nvr",
+                "--servername", "/tmp/nvim.sock",
+                "-d",
+                "-c", "set diffopt+=vertical,linematch:60,context:99999",
+                "-O",
+                left_file,
+                right_file,
+            ],
+            check=False,
+        )
     except:
         pass
+
+
+def _write_git_blob_to_temp(file_handle, revision, file):
+    """
+    Write the file contents from the given revision to a temp file.
+
+    Missing files are treated as empty so diffs still open for adds/deletes.
+    """
+
+    result = subprocess.run(
+        ["git", "show", f"{revision}:{file}"],
+        stdout=file_handle,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    file_handle.flush()
+    return result.returncode == 0
+
+
+def _run_git_stdout(args):
+    result = subprocess.run(
+        ["git", *args],
+        stdout=subprocess.PIPE,
+        text=True,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        return ""
+
+    return result.stdout
+
+
+def _get_parent_revision(commit):
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{commit}^"],
+        stdout=subprocess.PIPE,
+        text=True,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        return EMPTY_TREE_HASH
+
+    return result.stdout.strip()
+
+
+def _extract_commit_hash(line):
+    parts = line.rsplit("\t", 1)
+    if len(parts) != 2:
+        return ""
+
+    return parts[1].strip()
+
+
+def _find_commit_position(commit_lines, commit):
+    if not commit:
+        return None
+
+    for index, line in enumerate(commit_lines, start=1):
+        if _extract_commit_hash(line) == commit:
+            return index
+
+    return None
+
+
+def _filter_fzf_lines(lines, query, no_sort=False, delimiter=None, with_nth=None):
+    if not query:
+        return lines
+
+    command = [
+        "fzf",
+        "--ansi",
+        "--filter", query,
+    ]
+    if no_sort:
+        command.append("--no-sort")
+    if delimiter:
+        command.extend(["--delimiter", delimiter])
+    if with_nth:
+        command.extend(["--with-nth", with_nth])
+
+    result = subprocess.run(
+        command,
+        input="\n".join(lines) + "\n",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        return lines
+
+    return result.stdout.splitlines()
+
+
+def _get_fzf_position(lines, commit, query, no_sort=False, delimiter=None, with_nth=None):
+    filtered_lines = _filter_fzf_lines(lines, query, no_sort, delimiter, with_nth)
+    return _find_commit_position(filtered_lines, commit)
+
+
+def _pick_from_fzf(lines, prompt, header=None, query=None, position=None, multi=False,
+                   no_sort=False, delimiter=None, with_nth=None):
+    command = [
+        "fzf",
+        "--ansi",
+        "--reverse",
+        "--prompt", prompt,
+    ]
+    if no_sort:
+        command.append("--no-sort")
+    if header:
+        command.extend(["--header", header])
+    if multi:
+        command.append("--multi")
+    if delimiter:
+        command.extend(["--delimiter", delimiter])
+    if with_nth:
+        command.extend(["--with-nth", with_nth])
+    if query is not None:
+        command.extend(["--print-query", "--query", query])
+    if position:
+        command.extend(["--bind", f"load:pos({position})"])
+
+    with NamedTemporaryFile(mode='w', delete=True) as input_file:
+        with NamedTemporaryFile(mode='r+', delete=True) as output_file:
+            input_file.write("\n".join(lines) + "\n")
+            input_file.flush()
+
+            with open(input_file.name, "r") as stdin_file:
+                with open(output_file.name, "w") as stdout_file:
+                    result = subprocess.run(
+                        command,
+                        stdin=stdin_file,
+                        stdout=stdout_file,
+                        check=False,
+                        text=True,
+                    )
+            if result.returncode != 0:
+                return None
+
+            output_file.seek(0)
+            output_lines = output_file.read().splitlines()
+            if query is None:
+                return output_lines
+
+            if not output_lines:
+                return "", []
+
+            return output_lines[0], output_lines[1:]
+
+
+def _get_graph_commit_lines():
+    return _run_git_stdout([
+        "log",
+        "--all",
+        "--color=always",
+        "--date=short",
+        "--decorate",
+        "--graph",
+        f"--pretty=format:{COMMIT_FORMAT}",
+    ]).splitlines()
+
+
+def _get_filelog_commit_lines(file):
+    return _run_git_stdout([
+        "log",
+        "--first-parent",
+        "--follow",
+        "--color=always",
+        "--date=short",
+        "--decorate",
+        f"--pretty=format:{COMMIT_FORMAT}",
+        "--",
+        file,
+    ]).splitlines()
+
+
+def _get_revisions_for_commits(commits):
+    newest_commit = commits[0]
+    oldest_commit = commits[-1]
+    base_revision = _get_parent_revision(oldest_commit)
+    return base_revision, newest_commit
+
+
+def _selected_commits_are_contiguous(commit_lines, commits):
+    positions = [_find_commit_position(commit_lines, commit) for commit in commits]
+    if not positions or any(position is None for position in positions):
+        return False
+    positions.sort()
+
+    return positions[-1] - positions[0] + 1 == len(positions)
+
+
+def _get_changed_files_for_commits(commits):
+    base_revision, target_revision = _get_revisions_for_commits(commits)
+    return [
+        line for line in _run_git_stdout([
+            "diff",
+            "--name-only",
+            base_revision,
+            target_revision,
+        ]).splitlines()
+        if line
+    ]
+
+
+def _file_diff_between_revisions(ctx, left_revision, right_revision, file):
+    """
+    Vim diff on the given file between two revisions.
+    """
+
+    with NamedTemporaryFile(mode='w', delete=True) as left_file:
+        with NamedTemporaryFile(mode='w', delete=True) as right_file:
+            _write_git_blob_to_temp(left_file, left_revision, file)
+            _write_git_blob_to_temp(right_file, right_revision, file)
+
+            _do_diff(ctx, left_file.name, right_file.name)
 
 
 def _commit_file_diff(ctx, commit, file):
@@ -41,18 +271,17 @@ def _commit_file_diff(ctx, commit, file):
     Vim diff on the given file, for the given commit, against it's parent.
     """
 
-    with NamedTemporaryFile(mode='w', delete=True) as left_file:
-        with NamedTemporaryFile(mode='w', delete=True) as right_file:
-            try:
-                result = ctx.run(f"git show {commit}^:{file} > {left_file.name}")
-            except:
-                left_file.write(""); # File might not exist, so just compare it with empty
+    base_revision, target_revision = _get_revisions_for_commits([commit])
+    _file_diff_between_revisions(ctx, base_revision, target_revision, file)
 
-            result = ctx.run(f"git show {commit}:{file} > {right_file.name}")
-            if result.exited != 0:
-                return
 
-            _do_diff(ctx, left_file.name, right_file.name)
+def _commit_range_file_diff(ctx, commits, file):
+    """
+    Vim diff on the given file for the selected commit range.
+    """
+
+    base_revision, target_revision = _get_revisions_for_commits(commits)
+    _file_diff_between_revisions(ctx, base_revision, target_revision, file)
 
 
 def _local_diff(ctx, file):
@@ -61,60 +290,72 @@ def _local_diff(ctx, file):
     """
 
     with NamedTemporaryFile(mode='w', delete=True) as left_file:
-        with NamedTemporaryFile(mode='w', delete=True) as right_file:
-            result = ctx.run(f"git show HEAD:{file} > {left_file.name}")
-            if result.exited != 0:
-                return
-
-            _do_diff(ctx, left_file.name, file)
+        _write_git_blob_to_temp(left_file, "HEAD", file)
+        _do_diff(ctx, left_file.name, file)
 
 
 @task
 def graph(ctx):
     """
-    Interactive git log browser: pick commit, pick file, nvim diff.
+    Interactive git log browser: pick commit range, pick file, nvim diff.
     """
-    # 1) outer loop: pick commits as many times as you want
+
+    commit_query = ""
+    selected_commit = None
+
     while True:
-        with NamedTemporaryFile(mode='r', delete=True) as commit_file:
-            result = subprocess.run(
-                "git log --all --color=always --date=short --decorate --graph "
-                "--pretty=format:'%C(yellow)%h%Creset %Cgreen%ad%Creset %Cblue%an%Creset "
-                "%C(auto)%d%Creset %s%x09%H' "
-                "| fzf --ansi --no-sort --reverse --delimiter=$'\\t' --with-nth=1 "
-                f" > {commit_file.name}",
-                shell=True,
-            )
-        
-            if result.returncode != 0:
+        commit_lines = _get_graph_commit_lines()
+        position = _get_fzf_position(
+            commit_lines,
+            selected_commit,
+            commit_query,
+            no_sort=True,
+            delimiter="\t",
+            with_nth="1",
+        )
+        result = _pick_from_fzf(
+            commit_lines,
+            "commit> ",
+            header="tab: mark a contiguous range, enter: inspect",
+            query=commit_query,
+            position=position,
+            multi=True,
+            no_sort=True,
+            delimiter="\t",
+            with_nth="1",
+        )
+        if result is None:
+            break
+
+        commit_query, selected_lines = result
+        commits = [
+            commit for commit in (_extract_commit_hash(line) for line in selected_lines)
+            if commit
+        ]
+        if not commits:
+            print("Error picking commit!")
+            continue
+        if not _selected_commits_are_contiguous(commit_lines, commits):
+            print("Select a contiguous commit range.")
+            continue
+
+        selected_commit = commits[0]
+        files = _get_changed_files_for_commits(commits)
+        if not files:
+            print("No files changed in the selected commit range.")
+            continue
+
+        while True:
+            result = _pick_from_fzf(files, "file> ")
+            if result is None:
                 break
 
-            commit = commit_file.read().strip().split("\t")[-1] # The hash is after the TAB
-            if not commit:
-                print("Error picking commit!")
+            file = result[0].strip() if result else ""
+            if not file:
+                print("Error picking file!")
                 continue
 
-            print(f"Commit {commit}")
-
-        # 2) inner loop: pick files from that commit as many times as you want
-        while True:
-            with NamedTemporaryFile(mode='r', delete=True) as file_file:
-                result = subprocess.run(
-                        f"git show -m --name-only --pretty='' {commit} "
-                        f"| fzf --ansi --reverse --prompt='file> ' "
-                        f"> {file_file.name}",
-                        shell=True,
-                )
-                
-                if result.returncode != 0:
-                    break
-
-                file = file_file.read().strip()
-                if not file:
-                    print("Error picking file!")
-                    continue
-
-            _commit_file_diff(ctx, commit, file)
+            _commit_range_file_diff(ctx, commits, file)
 
 
 @task(help={
@@ -133,7 +374,7 @@ def diff(ctx, staged=False):
                     f"> {file_file.name}",
                     shell=True,
             )
-            
+
             if result.returncode != 0:
                 break
 
@@ -153,29 +394,49 @@ def filelog(ctx, file):
     Interactive diff through a specific file's history.
     """
 
+    commit_query = ""
+    selected_commit = None
+
     while True:
-        with NamedTemporaryFile(mode='r', delete=True) as commit_file:
-            result = subprocess.run(
-                "git log --first-parent --follow --color=always --date=short --decorate "
-                "--pretty=format:"
-                "'%C(yellow)%h%Creset %Cgreen%ad%Creset %Cblue%an%Creset %C(auto)%d%Creset %s%x09%H' "
-                f"{file} "
-                "| fzf --ansi --no-sort --reverse --delimiter=$'\\t' --with-nth=1 "
-                f" > {commit_file.name}",
-                shell=True,
-            )
-            
-            if result.returncode != 0:
-                break
+        commit_lines = _get_filelog_commit_lines(file)
+        position = _get_fzf_position(
+            commit_lines,
+            selected_commit,
+            commit_query,
+            no_sort=True,
+            delimiter="\t",
+            with_nth="1",
+        )
+        result = _pick_from_fzf(
+            commit_lines,
+            "commit> ",
+            header="tab: mark a contiguous range, enter: diff file",
+            query=commit_query,
+            position=position,
+            multi=True,
+            no_sort=True,
+            delimiter="\t",
+            with_nth="1",
+        )
+        if result is None:
+            break
 
-            commit = commit_file.read().strip().split("\t")[-1] # The hash is after the TAB
-            if not commit:
-                print("Error picking commit!")
-                continue
+        commit_query, selected_lines = result
+        commits = [
+            commit for commit in (_extract_commit_hash(line) for line in selected_lines)
+            if commit
+        ]
+        if not commits:
+            print("Error picking commit!")
+            continue
+        if not _selected_commits_are_contiguous(commit_lines, commits):
+            print("Select a contiguous commit range.")
+            continue
 
-            _commit_file_diff(ctx, commit, file)
+        selected_commit = commits[0]
+        _commit_range_file_diff(ctx, commits, file)
 
- 
+
 # --------------------------------------------------------------------------------------------------
 # Script
 # --------------------------------------------------------------------------------------------------
@@ -184,4 +445,3 @@ git_tasks = Collection()
 git_tasks.add_task(graph)
 git_tasks.add_task(diff)
 git_tasks.add_task(filelog)
-

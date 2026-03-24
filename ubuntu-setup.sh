@@ -102,3 +102,12 @@ sudo ln -sf "$HOME/go/bin/go-grip" /bin/go-grip
 #
 # git config --global user.name djhoggatt
 # ssh-keygen -t ed25519 -C "djhoggatt@gmail.com"
+
+#Install wee-slack
+# Motivation: Need a slack interface into my terminal, so that I can monitor slack from the 
+# terminal. This prevents me from needed a separate browser window open for messaging.
+sudo apt install weechat-python python3-websocket
+mkdir -p ~/.local/share/weechat/python/autoload
+cd ~/.local/share/weechat/python
+curl -L -o wee_slack.py https://raw.githubusercontent.com/wee-slack/wee-slack/master/wee_slack.py
+ln -s ../wee_slack.py autoload/wee_slack.py
