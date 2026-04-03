@@ -676,6 +676,86 @@ def clone_repo(repo_url: str, destination: Path) -> None:
     run(["git", "clone", "--depth", "1", repo_url, str(destination)])
 
 
+def replace_once(text: str, old: str, new: str, *, label: str) -> str:
+    if old not in text:
+        fail(f"Could not patch {label}: expected snippet not found.")
+    return text.replace(old, new, 1)
+
+
+def patch_kwm_source(kwm_dir: Path) -> None:
+    binding_path = kwm_dir / "src" / "kwm" / "binding.zig"
+    binding_text = binding_path.read_text(encoding="utf-8")
+    binding_text = replace_once(
+        binding_text,
+        """    toggle_fullscreen: struct {
+        in_window: bool = false,
+    },
+    set_output_tag: struct { tag: Tag },
+""",
+        """    toggle_fullscreen: struct {
+        in_window: bool = false,
+    },
+    cycle_output_tag: types.Direction,
+    switch_output_tag: u32,
+    cycle_window_tag: types.Direction,
+    switch_window_tag: u32,
+    set_output_tag: struct { tag: Tag },
+""",
+        label=str(binding_path),
+    )
+    binding_path.write_text(binding_text, encoding="utf-8")
+
+    seat_path = kwm_dir / "src" / "kwm" / "seat.zig"
+    seat_text = seat_path.read_text(encoding="utf-8")
+    seat_text = replace_once(
+        seat_text,
+        """            .toggle_fullscreen => |data| {
+                context.toggle_fullscreen(data.in_window);
+            },
+            .set_output_tag => |data| {
+""",
+        """            .toggle_fullscreen => |data| {
+                context.toggle_fullscreen(data.in_window);
+            },
+            .cycle_output_tag => |direction| {
+                if (context.current_output) |output| {
+                    const mask = (@as(u32, 1) << @as(u5, @intCast(config.tags.len))) - 1;
+                    output.set_tag(utils.shift_tag(output.tag, mask, config.tags.len, direction));
+                }
+            },
+            .switch_output_tag => |index| {
+                if (context.current_output) |output| {
+                    if (index == 0 or index > config.tags.len) {
+                        log.warn("ignore invalid output tag index {}", .{ index });
+                        continue;
+                    }
+
+                    output.set_tag(@as(u32, 1) << @as(u5, @intCast(index - 1)));
+                }
+            },
+            .cycle_window_tag => |direction| {
+                if (context.focused_window()) |window| {
+                    const mask = (@as(u32, 1) << @as(u5, @intCast(config.tags.len))) - 1;
+                    window.set_tag(utils.shift_tag(window.tag, mask, config.tags.len, direction));
+                }
+            },
+            .switch_window_tag => |index| {
+                if (context.focused_window()) |window| {
+                    if (index == 0 or index > config.tags.len) {
+                        log.warn("ignore invalid window tag index {}", .{ index });
+                        continue;
+                    }
+
+                    window.set_tag(@as(u32, 1) << @as(u5, @intCast(index - 1)));
+                }
+            },
+            .set_output_tag => |data| {
+""",
+        label=str(seat_path),
+    )
+    seat_path.write_text(seat_text, encoding="utf-8")
+
+
 def install_river_and_kwm() -> None:
     river_dir = INSTALLER_BUILD_ROOT / "river"
     kwm_dir = INSTALLER_BUILD_ROOT / "kwm"
@@ -685,6 +765,7 @@ def install_river_and_kwm() -> None:
 
     clone_repo(RIVER_REPO, river_dir)
     clone_repo(KWM_REPO, kwm_dir)
+    patch_kwm_source(kwm_dir)
 
     run(
         [

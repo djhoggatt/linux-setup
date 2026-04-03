@@ -151,4 +151,5 @@ complete -F _complete_invoke -o default invoke inv
 
 set -o vi
 alias vim=nvim
+alias logout='pkill -u "$USER" -x river'
 export PATH="$HOME/.local/bin:$PATH"

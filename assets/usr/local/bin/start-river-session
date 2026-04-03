@@ -13,4 +13,8 @@ export QT_QPA_PLATFORM=wayland
 export SDL_VIDEODRIVER=wayland
 export MOZ_ENABLE_WAYLAND=1
 
+if command -v vmware-user-suid-wrapper >/dev/null 2>&1; then
+    vmware-user-suid-wrapper >/dev/null 2>&1 &
+fi
+
 exec dbus-run-session /usr/local/bin/river -c /usr/local/bin/kwm

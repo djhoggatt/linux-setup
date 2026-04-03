@@ -6,6 +6,43 @@
         .{ "wallpaper-rotate" },
     },
 
+    .window_rules = .{
+        .{ .app_id = .{ .str = "", .match_null = true }, .floating = true },
+        .{ .app_id = .{ .str = "zenity" }, .floating = true },
+        .{ .app_id = .{ .str = "xdg-desktop-portal-gtk" }, .floating = true },
+        .{ .app_id = .{ .str = "ghostty" }, .is_terminal = true, .scroller_mfact = 0.8 },
+    },
+
+//    .default_layout = .float,
+    .default_layout = .grid,
+    .layout = .{
+        .tile = .{
+            .nmaster = 1,
+            .mfact = 0.60,
+            .inner_gap = 12,
+            .outer_gap = 9,
+            .master_location = .left,
+        },
+        .grid = .{
+            .direction = .horizontal,
+            .inner_gap = 12,
+            .outer_gap = 9,
+        },
+        .monocle = .{
+            .gap = 9,
+        },
+        .deck = .{
+            .inner_gap = 12,
+            .outer_gap = 9,
+            .master_location = .left,
+        },
+        .scroller = .{
+            .mfact = 0.75,
+            .inner_gap = 16,
+            .outer_gap = 9,
+        },
+    },
+
     .bindings = .{
         .key = .{
             .{
@@ -42,6 +79,151 @@
                 },
             },
             .{
+                .keysym = "Tab",
+                .modifiers = .{ .mod1 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{
+                            .focus_iter = .{ .direction = .forward },
+                        },
+                    },
+                },
+            },
+            .{
+                .keysym = "Tab",
+                .modifiers = .{ .mod1 = true, .shift = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{
+                            .focus_iter = .{ .direction = .reverse },
+                        },
+                    },
+                },
+            },
+            .{
+                .keysym = "Right",
+                .modifiers = .{ .ctrl = true, .mod1 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{ .cycle_output_tag = .forward },
+                    },
+                },
+            },
+            .{
+                .keysym = "Left",
+                .modifiers = .{ .ctrl = true, .mod1 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{ .cycle_output_tag = .reverse },
+                    },
+                },
+            },
+            .{
+                .keysym = "Right",
+                .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{ .cycle_window_tag = .forward },
+                    },
+                },
+            },
+            .{
+                .keysym = "Left",
+                .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{ .cycle_window_tag = .reverse },
+                    },
+                },
+            },
+            .{ .keysym = "1", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .switch_output_tag = 1 } } } },
+            .{ .keysym = "2", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .switch_output_tag = 2 } } } },
+            .{ .keysym = "3", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .switch_output_tag = 3 } } } },
+            .{ .keysym = "4", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .switch_output_tag = 4 } } } },
+            .{ .keysym = "5", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .switch_output_tag = 5 } } } },
+            .{ .keysym = "6", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .switch_output_tag = 6 } } } },
+            .{ .keysym = "7", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .switch_output_tag = 7 } } } },
+            .{ .keysym = "8", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .switch_output_tag = 8 } } } },
+            .{ .keysym = "9", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .switch_output_tag = 9 } } } },
+            .{ .keysym = "1", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .switch_window_tag = 1 } } } },
+            .{ .keysym = "2", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .switch_window_tag = 2 } } } },
+            .{ .keysym = "3", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .switch_window_tag = 3 } } } },
+            .{ .keysym = "4", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .switch_window_tag = 4 } } } },
+            .{ .keysym = "5", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .switch_window_tag = 5 } } } },
+            .{ .keysym = "6", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .switch_window_tag = 6 } } } },
+            .{ .keysym = "7", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .switch_window_tag = 7 } } } },
+            .{ .keysym = "8", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .switch_window_tag = 8 } } } },
+            .{ .keysym = "9", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .switch_window_tag = 9 } } } },
+            .{
+                .keysym = "f",
+                .modifiers = .{ .ctrl = true, .mod1 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{
+                            .switch_layout = .{ .layout = .float },
+                        },
+                    },
+                },
+            },
+            .{
+                .keysym = "g",
+                .modifiers = .{ .ctrl = true, .mod1 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{
+                            .switch_layout = .{ .layout = .grid },
+                        },
+                    },
+                },
+            },
+            .{
+                .keysym = "m",
+                .modifiers = .{ .ctrl = true, .mod1 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{
+                            .switch_layout = .{ .layout = .monocle },
+                        },
+                    },
+                },
+            },
+            .{
+                .keysym = "l",
+                .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
+                .event = .{
+                    .repeat = .{
+                        .resize = .{ .step = .{ .horizontal = 10 } },
+                    },
+                },
+            },
+            .{
+                .keysym = "h",
+                .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
+                .event = .{
+                    .repeat = .{
+                        .resize = .{ .step = .{ .horizontal = -10 } },
+                    },
+                },
+            },
+            .{
+                .keysym = "j",
+                .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
+                .event = .{
+                    .repeat = .{
+                        .resize = .{ .step = .{ .vertical = 10 } },
+                    },
+                },
+            },
+            .{
+                .keysym = "k",
+                .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
+                .event = .{
+                    .repeat = .{
+                        .resize = .{ .step = .{ .vertical = -10 } },
+                    },
+                },
+            },
+            .{
                 .keysym = "space",
                 .modifiers = .{ .mod4 = true },
                 .event = .{
@@ -53,6 +235,12 @@
                 },
             },
         },
-        .pointer = .{},
+        .pointer = .{
+            .{
+                .button = .left,
+                .modifiers = .{ .ctrl = true, .mod1 = true },
+                .event = .{ .pressed = .pointer_resize },
+            },
+        },
     },
 }
