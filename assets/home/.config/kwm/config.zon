@@ -79,6 +79,55 @@
                 },
             },
             .{
+                .keysym = "XF86AudioRaiseVolume",
+                .modifiers = .{},
+                .event = .{
+                    .repeat = .{
+                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" } },
+                    },
+                },
+            },
+            // VMware software keyboard remapping error.
+            .{
+                .keysym = "XF86AudioStop",
+                .modifiers = .{},
+                .event = .{
+                    .repeat = .{
+                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" } },
+                    },
+                },
+            },
+            .{
+                .keysym = "XF86AudioLowerVolume",
+                .modifiers = .{},
+                .event = .{
+                    .repeat = .{
+                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" } },
+                    },
+                },
+            },
+            // VMware software keyboard remapping error.
+            .{
+                .keysym = "XF86AudioPrev",
+                .modifiers = .{},
+                .event = .{
+                    .repeat = .{
+                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" } },
+                    },
+                },
+            },
+            .{
+                .keysym = "XF86AudioMute",
+                .modifiers = .{},
+                .event = .{
+                    .click = .{
+                        .pressed = .{
+                            .spawn = .{ .argv = .{ "wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle" } },
+                        },
+                    },
+                },
+            },
+            .{
                 .keysym = "Tab",
                 .modifiers = .{ .mod1 = true },
                 .event = .{

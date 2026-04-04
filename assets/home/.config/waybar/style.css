@@ -10,6 +10,7 @@ window#waybar {
 
 #tags,
 #window,
+#pulseaudio,
 #clock,
 #network {
   background: rgba(30, 34, 42, 0.75);
