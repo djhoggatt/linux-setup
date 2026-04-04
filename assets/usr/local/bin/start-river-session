@@ -13,7 +13,9 @@ export QT_QPA_PLATFORM=wayland
 export SDL_VIDEODRIVER=wayland
 export MOZ_ENABLE_WAYLAND=1
 
-# Disabled for VMware cursor troubleshooting on multi-monitor Wayland.
+if command -v vmware-user-suid-wrapper >/dev/null 2>&1; then
+    vmware-user-suid-wrapper >/dev/null 2>&1 &
+fi
 
 if [[ ! -x /usr/local/bin/river ]]; then
     echo "river is missing at /usr/local/bin/river"

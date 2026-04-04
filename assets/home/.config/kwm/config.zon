@@ -6,6 +6,13 @@
         .{ "wallpaper-rotate" },
     },
 
+    .xcursor_theme = .{
+        .theme = .{
+            .name = "Adwaita",
+            .size = 24,
+        },
+    },
+
     .bar = .{
         .show_default = true,
         .position = .top,

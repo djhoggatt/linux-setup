@@ -30,8 +30,8 @@ def parse_outputs(text: str) -> list[str]:
     return outputs
 
 
-def parse_widths(text: str) -> dict[str, int]:
-    widths: dict[str, int] = {}
+def parse_dimensions(text: str) -> dict[str, tuple[int, int]]:
+    dimensions: dict[str, tuple[int, int]] = {}
     current: str | None = None
     pattern = re.compile(r"^\s+(\d+)x(\d+)")
 
@@ -45,9 +45,9 @@ def parse_widths(text: str) -> dict[str, int]:
             continue
         match = pattern.match(line)
         if match:
-            widths[current] = int(match.group(1))
+            dimensions[current] = (int(match.group(1)), int(match.group(2)))
             current = None
-    return widths
+    return dimensions
 
 
 def prompt_order(outputs: list[str]) -> list[str]:
@@ -77,7 +77,31 @@ def prompt_order(outputs: list[str]) -> list[str]:
         return [outputs[index - 1] for index in indexes]
 
 
-def build_script(order: list[str], widths: dict[str, int]) -> str:
+def prompt_y_offsets(order: list[str]) -> dict[str, int]:
+    print()
+    print("Enter the Y offset for each monitor.")
+    print("Use 0 for no vertical offset. Positive values move the monitor down.")
+
+    offsets: dict[str, int] = {}
+    for output in order:
+        while True:
+            raw = input(f"Y offset for {output}: ").strip()
+            try:
+                offsets[output] = int(raw)
+            except ValueError:
+                print("Use an integer, for example 0, 540, or 1080.")
+                continue
+            break
+
+    return offsets
+
+
+def build_script(
+    order: list[str],
+    dimensions: dict[str, tuple[int, int]],
+    y_offsets: dict[str, int],
+) -> str:
+
     lines = [
         "#!/usr/bin/env bash",
         "set -euo pipefail",
@@ -86,8 +110,10 @@ def build_script(order: list[str], widths: dict[str, int]) -> str:
 
     x = 0
     for output in order:
-        lines.append(f"wlr-randr --output {output} --on --pos {x},0")
-        x += widths.get(output, 1920)
+        width, _ = dimensions.get(output, (1920, 1080))
+        y = y_offsets.get(output, 0)
+        lines.append(f"wlr-randr --output {output} --on --pos {x},{y}")
+        x += width
 
     lines.append("")
     return "\n".join(lines)
@@ -102,11 +128,12 @@ def main() -> None:
     if len(outputs) < 2:
         raise SystemExit("Need at least two detected outputs.")
 
-    widths = parse_widths(output)
+    dimensions = parse_dimensions(output)
     order = prompt_order(outputs)
+    y_offsets = prompt_y_offsets(order)
 
     STARTUP_SCRIPT.parent.mkdir(parents=True, exist_ok=True)
-    STARTUP_SCRIPT.write_text(build_script(order, widths), encoding="utf-8")
+    STARTUP_SCRIPT.write_text(build_script(order, dimensions, y_offsets), encoding="utf-8")
     STARTUP_SCRIPT.chmod(0o755)
 
     print()
