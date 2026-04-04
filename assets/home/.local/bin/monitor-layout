@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Placeholder installed by linux-setup.
+# Run ~/monitor-config.py to replace this with a real monitor layout script.

@@ -46,7 +46,6 @@ BASE_PACKAGES = [
     "chromium",
     "xorg-xwayland",
     "ly",
-    "waybar",
     "rofi-wayland",
     "awww",
     "gtklock",
@@ -87,6 +86,7 @@ BASE_PACKAGES = [
     "libinput",
     "libevdev",
     "pixman",
+    "fcft",
 ]
 
 CPU_PACKAGES = {
@@ -707,7 +707,6 @@ def install_user_files(username: str) -> None:
         home / ".config" / "kwm",
         home / ".config" / "nvim",
         home / ".config" / "rofi",
-        home / ".config" / "waybar",
         home / ".local",
         home / ".local" / "bin",
         home / ".local" / "share",
@@ -750,10 +749,10 @@ def install_user_files(username: str) -> None:
         ("home/.config/nvim/init.lua", home / ".config" / "nvim" / "init.lua", 0o644),
         ("home/.config/rofi/config.rasi", home / ".config" / "rofi" / "config.rasi", 0o644),
         ("home/.config/user-dirs.dirs", home / ".config" / "user-dirs.dirs", 0o644),
-        ("home/.config/waybar/config.jsonc", home / ".config" / "waybar" / "config.jsonc", 0o644),
-        ("home/.config/waybar/style.css", home / ".config" / "waybar" / "style.css", 0o644),
+        ("home/monitor-config.py", home / "monitor-config.py", 0o755),
         ("home/.local/bin/ghostty-launch", home / ".local" / "bin" / "ghostty-launch", 0o755),
         ("home/.local/bin/lock-screen", home / ".local" / "bin" / "lock-screen", 0o755),
+        ("home/.local/bin/monitor-layout", home / ".local" / "bin" / "monitor-layout", 0o755),
         ("home/.local/bin/screenshot-region", home / ".local" / "bin" / "screenshot-region", 0o755),
         ("home/.local/bin/wallpaper-rotate", home / ".local" / "bin" / "wallpaper-rotate", 0o755),
         (
@@ -817,7 +816,6 @@ def install_river_and_kwm() -> None:
             "zig",
             "build",
             "-Doptimize=ReleaseSafe",
-            "-Dbar=false",
             "-Dbackground=false",
             "--prefix",
             "/usr/local",

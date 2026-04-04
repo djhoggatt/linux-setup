@@ -13,9 +13,7 @@ export QT_QPA_PLATFORM=wayland
 export SDL_VIDEODRIVER=wayland
 export MOZ_ENABLE_WAYLAND=1
 
-if command -v vmware-user-suid-wrapper >/dev/null 2>&1; then
-    vmware-user-suid-wrapper >/dev/null 2>&1 &
-fi
+# Disabled for VMware cursor troubleshooting on multi-monitor Wayland.
 
 if [[ ! -x /usr/local/bin/river ]]; then
     echo "river is missing at /usr/local/bin/river"
@@ -29,4 +27,70 @@ if [[ ! -x /usr/local/bin/kwm ]]; then
     exit 1
 fi
 
-exec dbus-run-session /usr/local/bin/river -c /usr/local/bin/kwm
+wm_cmd="$(cat <<'EOF'
+sleep_pid=""
+
+refresh_status() {
+    if [[ -n "$sleep_pid" ]]; then
+        kill "$sleep_pid" 2>/dev/null || true
+    fi
+}
+
+trap refresh_status USR1
+
+network_status() {
+    local wifi_ssid ethernet_state
+
+    wifi_ssid="$(nmcli -t -f ACTIVE,SSID dev wifi 2>/dev/null | awk -F: '$1=="yes"{print $2; exit}')"
+    if [[ -n "$wifi_ssid" ]]; then
+        printf 'wifi %s' "$wifi_ssid"
+        return
+    fi
+
+    ethernet_state="$(nmcli -t -f TYPE,STATE dev status 2>/dev/null | awk -F: '$1=="ethernet" && $2=="connected"{print "wired"; exit}')"
+    if [[ -n "$ethernet_state" ]]; then
+        printf '%s' "$ethernet_state"
+        return
+    fi
+
+    printf 'offline'
+}
+
+audio_status() {
+    local raw volume muted percent
+
+    raw="$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null || true)"
+    if [[ -z "$raw" ]]; then
+        printf 'muted'
+        return
+    fi
+
+    muted=""
+    if [[ "$raw" == *"[MUTED]"* ]]; then
+        muted="yes"
+    fi
+
+    volume="$(awk '{print $2}' <<<"$raw")"
+    percent="$(awk -v v="$volume" 'BEGIN { printf "%d", (v * 100) + 0.5 }')"
+
+    if [[ -n "$muted" ]]; then
+        printf 'muted'
+    else
+        printf 'vol %s%%' "$percent"
+    fi
+}
+
+while :; do
+    printf '%s | %s | %s\n' \
+        "$(network_status)" \
+        "$(audio_status)" \
+        "$(date '+%a %Y-%m-%d %H:%M')"
+    sleep 2 &
+    sleep_pid=$!
+    wait "$sleep_pid" 2>/dev/null || true
+    sleep_pid=""
+done | /usr/local/bin/kwm
+EOF
+)"
+
+exec dbus-run-session /usr/local/bin/river -c "exec -a kwm-status-loop bash -lc $(printf '%q' "$wm_cmd")"

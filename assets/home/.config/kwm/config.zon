@@ -2,9 +2,33 @@
     .background = null,
 
     .startup_cmds = .{
-        .{ "waybar" },
+        .{ "monitor-layout" },
         .{ "wallpaper-rotate" },
     },
+
+    .bar = .{
+        .show_default = true,
+        .position = .top,
+        .font = "monospace:size=10",
+        .color = .{
+            .normal = .{
+                .fg = 0xe6e6e6ff,
+                .bg = 0x000000ff,
+            },
+            .select = .{
+                .fg = 0xe6e6e6ff,
+                .bg = 0x1a1a1aff,
+            },
+        },
+        .status = .stdin,
+        .click = .{
+            .status = .{
+                .left = .{ .action = .{ .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && pkill -USR1 -f '^kwm-status-loop$'" } } } },
+            },
+        },
+    },
+
+    .tags = .{ "1", "2", "3", "4", "5", "6", "7", "8", "9" },
 
     .window_rules = .{
         .{ .app_id = .{ .str = "", .match_null = true }, .floating = true },
@@ -83,7 +107,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" } },
+                        .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ && pkill -USR1 -f '^kwm-status-loop$'" } },
                     },
                 },
             },
@@ -93,7 +117,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" } },
+                        .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ && pkill -USR1 -f '^kwm-status-loop$'" } },
                     },
                 },
             },
@@ -102,7 +126,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" } },
+                        .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && pkill -USR1 -f '^kwm-status-loop$'" } },
                     },
                 },
             },
@@ -112,7 +136,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" } },
+                        .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && pkill -USR1 -f '^kwm-status-loop$'" } },
                     },
                 },
             },
@@ -122,7 +146,7 @@
                 .event = .{
                     .click = .{
                         .pressed = .{
-                            .spawn = .{ .argv = .{ "wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle" } },
+                            .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && pkill -USR1 -f '^kwm-status-loop$'" } },
                         },
                     },
                 },
@@ -150,7 +174,7 @@
                 },
             },
             .{
-                .keysym = "Right",
+                .keysym = "Down",
                 .modifiers = .{ .ctrl = true, .mod1 = true },
                 .event = .{
                     .click = .{
@@ -159,7 +183,7 @@
                 },
             },
             .{
-                .keysym = "Left",
+                .keysym = "Up",
                 .modifiers = .{ .ctrl = true, .mod1 = true },
                 .event = .{
                     .click = .{
@@ -169,6 +193,24 @@
             },
             .{
                 .keysym = "Right",
+                .modifiers = .{ .ctrl = true, .mod1 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{ .focus_output_iter = .{ .direction = .forward } },
+                    },
+                },
+            },
+            .{
+                .keysym = "Left",
+                .modifiers = .{ .ctrl = true, .mod1 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{ .focus_output_iter = .{ .direction = .reverse } },
+                    },
+                },
+            },
+            .{
+                .keysym = "Down",
                 .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
                 .event = .{
                     .click = .{
@@ -177,11 +219,29 @@
                 },
             },
             .{
-                .keysym = "Left",
+                .keysym = "Up",
                 .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
                 .event = .{
                     .click = .{
                         .pressed = .{ .set_window_tag = .{ .tag = .{ .direction = .reverse } } },
+                    },
+                },
+            },
+            .{
+                .keysym = "Right",
+                .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{ .send_to_output = .{ .direction = .forward } },
+                    },
+                },
+            },
+            .{
+                .keysym = "Left",
+                .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{ .send_to_output = .{ .direction = .reverse } },
                     },
                 },
             },
