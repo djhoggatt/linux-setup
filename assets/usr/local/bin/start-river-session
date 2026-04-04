@@ -17,4 +17,16 @@ if command -v vmware-user-suid-wrapper >/dev/null 2>&1; then
     vmware-user-suid-wrapper >/dev/null 2>&1 &
 fi
 
+if [[ ! -x /usr/local/bin/river ]]; then
+    echo "river is missing at /usr/local/bin/river"
+    sleep 10
+    exit 1
+fi
+
+if [[ ! -x /usr/local/bin/kwm ]]; then
+    echo "kwm is missing at /usr/local/bin/kwm"
+    sleep 10
+    exit 1
+fi
+
 exec dbus-run-session /usr/local/bin/river -c /usr/local/bin/kwm
