@@ -16,7 +16,7 @@
     .bar = .{
         .show_default = true,
         .position = .top,
-        .font = "monospace:size=10",
+        .font = "Iosevka:size=11",
         .color = .{
             .normal = .{
                 .fg = 0xe6e6e6ff,
@@ -24,14 +24,22 @@
             },
             .select = .{
                 .fg = 0xe6e6e6ff,
-                .bg = 0x1a1a1aff,
+                .bg = 0x242424ff,
             },
         },
         .status = .stdin,
         .click = .{
             .status = .{
-                .left = .{ .action = .{ .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && pkill -USR1 -f '^kwm-status-loop$'" } } } },
+                .left = .{ .action = .{ .spawn = .{ .argv = .{ "wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle" } } } },
             },
+        },
+    },
+
+    .border = .{
+        .width = 5,
+        .color = .{
+            .focus = 0x2a2a2aff,
+            .unfocus = 0x161616ff,
         },
     },
 
@@ -114,7 +122,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ && pkill -USR1 -f '^kwm-status-loop$'" } },
+                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" } },
                     },
                 },
             },
@@ -124,7 +132,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ && pkill -USR1 -f '^kwm-status-loop$'" } },
+                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" } },
                     },
                 },
             },
@@ -133,7 +141,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && pkill -USR1 -f '^kwm-status-loop$'" } },
+                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" } },
                     },
                 },
             },
@@ -143,7 +151,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && pkill -USR1 -f '^kwm-status-loop$'" } },
+                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" } },
                     },
                 },
             },
@@ -153,7 +161,7 @@
                 .event = .{
                     .click = .{
                         .pressed = .{
-                            .spawn = .{ .argv = .{ "bash", "-lc", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && pkill -USR1 -f '^kwm-status-loop$'" } },
+                            .spawn = .{ .argv = .{ "wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle" } },
                         },
                     },
                 },

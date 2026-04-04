@@ -50,6 +50,8 @@ BASE_PACKAGES = [
     "awww",
     "gtklock",
     "fastfetch",
+    "bottom",
+    "gthumb",
     "ttc-iosevka",
     "ttf-iosevka-nerd",
     "grim",
@@ -751,6 +753,7 @@ def install_user_files(username: str) -> None:
         ("home/.config/user-dirs.dirs", home / ".config" / "user-dirs.dirs", 0o644),
         ("home/monitor-config.py", home / "monitor-config.py", 0o755),
         ("home/.local/bin/ghostty-launch", home / ".local" / "bin" / "ghostty-launch", 0o755),
+        ("home/.local/bin/kwm-status.zig", home / ".local" / "bin" / "kwm-status.zig", 0o644),
         ("home/.local/bin/lock-screen", home / ".local" / "bin" / "lock-screen", 0o755),
         ("home/.local/bin/monitor-layout", home / ".local" / "bin" / "monitor-layout", 0o755),
         ("home/.local/bin/screenshot-region", home / ".local" / "bin" / "screenshot-region", 0o755),
@@ -765,6 +768,18 @@ def install_user_files(username: str) -> None:
     ]
     for source_name, destination, mode in asset_copy_map:
         copy_file(asset_file(source_name), destination, mode, owner=owner)
+
+    run_as_user(
+        username,
+        [
+            "zig",
+            "build-exe",
+            str(home / ".local" / "bin" / "kwm-status.zig"),
+            "-O",
+            "ReleaseSafe",
+            "-femit-bin=" + str(home / ".local" / "bin" / "kwm-status"),
+        ],
+    )
 
 
 def enable_services(config: dict[str, object]) -> None:
