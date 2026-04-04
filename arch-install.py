@@ -98,9 +98,14 @@ GPU_PACKAGES = {
     "intel": ["mesa", "vulkan-intel"],
     "amd": ["mesa", "vulkan-radeon", "xf86-video-amdgpu"],
     "nvidia": ["nvidia", "nvidia-utils", "egl-wayland"],
+    "vmware": ["mesa"],
 }
 
-VM_PACKAGES = ["open-vm-tools"]
+VM_PACKAGES = [
+    "open-vm-tools",
+    "gtkmm3",
+    "libxtst",
+]
 
 USER_GROUPS = [
     "wheel",
@@ -225,6 +230,106 @@ def prompt_bool(text: str, default: bool) -> bool:
     if value in {"n", "no"}:
         return False
     fail(f"Invalid response: {value}")
+
+
+def quiet_command_output(command: list[str]) -> str | None:
+    try:
+        result = subprocess.run(command, check=False, text=True, capture_output=True)
+    except FileNotFoundError:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def detect_cpu_vendor() -> str | None:
+    cpu_text = quiet_command_output(["lscpu"])
+    if cpu_text is None:
+        cpuinfo = Path("/proc/cpuinfo")
+        if cpuinfo.exists():
+            cpu_text = cpuinfo.read_text(encoding="utf-8", errors="replace")
+    if not cpu_text:
+        return None
+
+    lowered = cpu_text.lower()
+    if "genuineintel" in lowered or "intel" in lowered:
+        return "intel"
+    if "authenticamd" in lowered or "amd" in lowered:
+        return "amd"
+    return None
+
+
+def detect_gpu_stack() -> str | None:
+    pci_text = quiet_command_output(["lspci", "-nn"])
+    display_lines: list[str] = []
+    if pci_text:
+        display_lines = [
+            line.lower()
+            for line in pci_text.splitlines()
+            if "vga compatible controller" in line.lower() or "3d controller" in line.lower()
+        ]
+
+    if not display_lines:
+        drm_root = Path("/sys/class/drm")
+        if drm_root.exists():
+            for vendor_file in drm_root.glob("card*/device/vendor"):
+                try:
+                    vendor = vendor_file.read_text(encoding="utf-8").strip().lower()
+                except OSError:
+                    continue
+                if vendor == "0x15ad":
+                    display_lines.append("vmware")
+                elif vendor == "0x10de":
+                    display_lines.append("nvidia")
+                elif vendor == "0x1002":
+                    display_lines.append("amd")
+                elif vendor == "0x8086":
+                    display_lines.append("intel")
+
+    found = set()
+    for line in display_lines:
+        if "vmware" in line or "15ad" in line or "0405" in line:
+            found.add("vmware")
+        if "nvidia" in line or "10de" in line:
+            found.add("nvidia")
+        if "advanced micro devices" in line or " amd" in line or "ati " in line or "1002" in line:
+            found.add("amd")
+        if "intel" in line or "8086" in line:
+            found.add("intel")
+
+    for preferred in ["vmware", "nvidia", "amd", "intel"]:
+        if preferred in found:
+            return preferred
+    return None
+
+
+def detect_vmware_guest() -> bool:
+    virt_type = quiet_command_output(["systemd-detect-virt"])
+    if virt_type and virt_type.strip() == "vmware":
+        return True
+
+    sys_vendor = Path("/sys/class/dmi/id/sys_vendor")
+    product_name = Path("/sys/class/dmi/id/product_name")
+    for candidate in [sys_vendor, product_name]:
+        if not candidate.exists():
+            continue
+        text = candidate.read_text(encoding="utf-8", errors="replace").strip().lower()
+        if "vmware" in text:
+            return True
+    return False
+
+
+def apply_detected_hardware_defaults(config: dict[str, object]) -> None:
+    detected_cpu = detect_cpu_vendor()
+    if detected_cpu not in CPU_PACKAGES:
+        fail("Could not auto-detect a supported CPU vendor (intel or amd).")
+    config["cpu_vendor"] = detected_cpu
+
+    detected_gpu = detect_gpu_stack()
+    if detected_gpu not in GPU_PACKAGES:
+        fail("Could not auto-detect a supported GPU stack (intel, amd, nvidia, or vmware).")
+    config["gpu_stack"] = detected_gpu
+    config["is_vm"] = detected_gpu == "vmware" or detect_vmware_guest()
 
 
 def prompt_password(label: str) -> str:
@@ -668,6 +773,7 @@ def enable_services(config: dict[str, object]) -> None:
     run(["systemctl", "enable", "sshd.service"])
     if bool(config.get("is_vm")):
         run(["systemctl", "enable", "vmtoolsd.service"], check=False)
+        run(["systemctl", "enable", "vmware-vmblock-fuse.service"], check=False)
     run(["systemctl", "disable", "getty@tty2.service"], check=False)
     run(["systemctl", "enable", "ly@tty2.service"])
 
@@ -785,6 +891,7 @@ def load_config(path_arg: str | None) -> dict[str, object]:
 
 def collect_config() -> dict[str, object]:
     config = dict(DEFAULT_CONFIG)
+    apply_detected_hardware_defaults(config)
     config["hostname"] = prompt("Hostname", str(config["hostname"]))
     config["timezone"] = prompt("Timezone", str(config["timezone"]))
     config["locale"] = prompt("Locale", str(config["locale"]))
@@ -792,9 +899,6 @@ def collect_config() -> dict[str, object]:
     config["username"] = prompt("Username")
     config["root_password"] = prompt_password("Root password")
     config["user_password"] = prompt_password(f"Password for {config['username']}")
-    config["cpu_vendor"] = prompt_choice("CPU vendor", ["intel", "amd"], str(config["cpu_vendor"]))
-    config["gpu_stack"] = prompt_choice("GPU stack", ["intel", "amd", "nvidia"], str(config["gpu_stack"]))
-    config["is_vm"] = prompt_bool("Is this install running inside a VMware VM", bool(config["is_vm"]))
     config["target_disk"] = prompt_wipe_target(config)
     return config
 
