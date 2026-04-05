@@ -11,6 +11,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -408,6 +409,30 @@ def refresh_clock_and_keys() -> None:
     run(["pacman", "-Sy", "--noconfirm"])
     run(["pacman", "-S", "--noconfirm", "--needed", "archlinux-keyring"])
     run(["timedatectl", "set-ntp", "true"])
+
+
+def connect_network() -> None:
+    connection_type = prompt_choice("Network connection type", ["wired", "wireless"], "wired")
+    if connection_type == "wired":
+        print("\nUsing the existing wired network connection.")
+        return
+
+    run(["rfkill", "unblock", "wifi"], check=False)
+    run(["iwctl", "device", "list"])
+    device = prompt("Wireless device")
+
+    run(["iwctl", "station", device, "scan"])
+    time.sleep(2)
+    run(["iwctl", "station", device, "get-networks"])
+    ssid = prompt("Wi-Fi network name (SSID)")
+    passphrase = getpass.getpass("Wi-Fi passphrase (leave blank for open network): ")
+
+    connect_command = ["iwctl"]
+    if passphrase:
+        connect_command.append(f"--passphrase={passphrase}")
+    connect_command.extend(["station", device, "connect", ssid])
+    run(connect_command)
+    run(["iwctl", "station", device, "show"], check=False)
 
 
 def cleanup_mounts() -> None:
@@ -926,6 +951,7 @@ def collect_config() -> dict[str, object]:
 def run_iso_install() -> None:
     require_root()
     require_uefi()
+    connect_network()
 
     config = collect_config()
     validate_disk(str(config["target_disk"]))
