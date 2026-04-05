@@ -1,0 +1,89 @@
+diff --git a/build.zig b/build.zig
+index 46b515b..87a1f88 100644
+--- a/build.zig
++++ b/build.zig
+@@ -166,6 +166,7 @@ pub fn build(b: *Build) !void {
+         river.root_module.link_libc = true;
+         river.root_module.linkSystemLibrary("libevdev", .{});
+         river.root_module.linkSystemLibrary("libinput", .{});
++        river.root_module.linkSystemLibrary("libdrm", .{});
+         river.root_module.linkSystemLibrary("wayland-server", .{});
+         river.root_module.linkSystemLibrary(wlroots_pkgconf, .{});
+         river.root_module.linkSystemLibrary("xkbcommon", .{});
+diff --git a/river/Server.zig b/river/Server.zig
+index 592b915..31a4b16 100644
+--- a/river/Server.zig
++++ b/river/Server.zig
+@@ -38,6 +38,39 @@ const XwaylandWindow = @import("XwaylandWindow.zig");
+ 
+ const log = std.log;
+ 
++extern fn wlr_linux_dmabuf_v1_set_check_dmabuf_callback(
++    linux_dmabuf: *wlr.LinuxDmabufV1,
++    callback: *const fn (*wlr.DmabufAttributes, ?*anyopaque) callconv(.c) bool,
++    data: ?*anyopaque,
++) void;
++
++fn dmabufCheckCallback(attribs: *wlr.DmabufAttributes, data: ?*anyopaque) callconv(.c) bool {
++    const linux_dmabuf: *wlr.LinuxDmabufV1 = @ptrCast(@alignCast(data.?));
++    const linux_dmabuf_c: *c.struct_wlr_linux_dmabuf_v1 = @ptrCast(linux_dmabuf);
++    const main_device_fd = linux_dmabuf_c.WLR_PRIVATE.main_device_fd;
++
++    if (main_device_fd < 0) {
++        return true;
++    }
++
++    var i: usize = 0;
++    while (i < @as(usize, @intCast(attribs.n_planes))) : (i += 1) {
++        var handle: u32 = 0;
++        if (c.drmPrimeFDToHandle(main_device_fd, attribs.fd[i], &handle) != 0) {
++            return false;
++        }
++        if (c.drmCloseBufferHandle(main_device_fd, handle) != 0) {
++            // vmwgfx can reject this cleanup step with EINVAL even after the
++            // DMA-BUF import succeeded. wlroots treats that as fatal.
++            if (c.__errno_location().* != c.EINVAL) {
++                return false;
++            }
++        }
++    }
++
++    return true;
++}
++
+ wl_server: *wl.Server,
+ 
+ sigint_source: *wl.EventSource,
+@@ -187,6 +220,13 @@ pub fn init(server: *Server, runtime_xwayland: bool) !void {
+ 
+     if (renderer.getTextureFormats(@intFromEnum(wlr.BufferCap.dmabuf)) != null) {
+         server.linux_dmabuf = try wlr.LinuxDmabufV1.createWithRenderer(wl_server, 5, renderer);
++        if (server.linux_dmabuf) |linux_dmabuf| {
++            wlr_linux_dmabuf_v1_set_check_dmabuf_callback(
++                linux_dmabuf,
++                &dmabufCheckCallback,
++                linux_dmabuf,
++            );
++        }
+     }
+     if (renderer.features.timeline and backend.features.timeline) {
+         const drm_fd = renderer.getDrmFd();
+diff --git a/river/c.zig b/river/c.zig
+index 590de7a..ff95aea 100644
+--- a/river/c.zig
++++ b/river/c.zig
+@@ -3,9 +3,14 @@
+ 
+ pub const c = @cImport({
+     @cDefine("_POSIX_C_SOURCE", "200809L");
++    @cDefine("WLR_USE_UNSTABLE", "1");
+ 
+     @cInclude("stdlib.h");
++    @cInclude("string.h");
+     @cInclude("unistd.h");
++    @cInclude("errno.h");
++    @cInclude("xf86drm.h");
++    @cInclude("wlr/types/wlr_linux_dmabuf_v1.h");
+ 
+     @cInclude("linux/input-event-codes.h");
+     @cInclude("libevdev/libevdev.h");

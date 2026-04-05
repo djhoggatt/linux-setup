@@ -682,7 +682,6 @@ def run_as_user(
 
 def install_machine_files() -> None:
     copy_file(asset_file("etc/sudoers.d/10-wheel"), Path("/etc/sudoers.d/10-wheel"), 0o440)
-    copy_file(asset_file("usr/local/bin/ghostty"), Path("/usr/local/bin/ghostty"), 0o755)
     copy_file(
         asset_file("usr/local/bin/start-river-session"),
         Path("/usr/local/bin/start-river-session"),
@@ -803,6 +802,13 @@ def clone_repo(repo_url: str, destination: Path, ref: str | None = None) -> None
         run(["git", "checkout", "--detach", ref], cwd=str(destination))
 
 
+def apply_git_patch(repository: Path, patch_relative_path: str) -> None:
+    run(
+        ["git", "apply", "--whitespace=nowarn", str(asset_file(patch_relative_path))],
+        cwd=str(repository),
+    )
+
+
 def install_river_and_kwm() -> None:
     river_dir = INSTALLER_BUILD_ROOT / "river"
     kwm_dir = INSTALLER_BUILD_ROOT / "kwm"
@@ -812,6 +818,7 @@ def install_river_and_kwm() -> None:
 
     clone_repo(RIVER_REPO, river_dir, RIVER_REF)
     clone_repo(KWM_REPO, kwm_dir, KWM_REF)
+    apply_git_patch(river_dir, "patches/river-vmwgfx-dmabuf-workaround.patch")
     run(
         [
             "zig",
