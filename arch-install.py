@@ -99,7 +99,7 @@ CPU_PACKAGES = {
 GPU_PACKAGES = {
     "intel": ["mesa", "vulkan-intel"],
     "amd": ["mesa", "vulkan-radeon", "xf86-video-amdgpu"],
-    "nvidia": ["nvidia", "nvidia-utils", "egl-wayland"],
+    "nvidia": ["nvidia-open", "nvidia-utils", "egl-wayland"],
     "vmware": ["mesa"],
 }
 
