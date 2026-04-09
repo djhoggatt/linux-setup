@@ -12,6 +12,7 @@ export GDK_BACKEND=wayland,x11
 export QT_QPA_PLATFORM=wayland
 export SDL_VIDEODRIVER=wayland
 export MOZ_ENABLE_WAYLAND=1
+export RIVER_CHROMIUM_OPACITY=90%
 
 if command -v vmware-user-suid-wrapper >/dev/null 2>&1; then
     vmware-user-suid-wrapper >/dev/null 2>&1 &

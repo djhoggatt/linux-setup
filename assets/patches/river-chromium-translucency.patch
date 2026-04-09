@@ -1,0 +1,222 @@
+diff --git a/river/Scene.zig b/river/Scene.zig
+index 5a144bf..ba8e8e7 100644
+--- a/river/Scene.zig
++++ b/river/Scene.zig
+@@ -185,6 +185,8 @@ pub const SaveableSurfaces = struct {
+         scene_buffer.setDestSize(buffer.dst_width, buffer.dst_height);
+         scene_buffer.setSourceBox(&buffer.src_box);
+         scene_buffer.setTransform(buffer.transform);
++        scene_buffer.setOpacity(buffer.opacity);
++        scene_buffer.setOpaqueRegion(&buffer.opaque_region);
+     }
+ 
+     pub fn dropSaved(surfaces: *SaveableSurfaces) void {
+diff --git a/river/Server.zig b/river/Server.zig
+index 592b915..ceb6ca3 100644
+--- a/river/Server.zig
++++ b/river/Server.zig
+@@ -6,6 +6,7 @@ const Server = @This();
+ const build_options = @import("build_options");
+ const std = @import("std");
+ const assert = std.debug.assert;
++const math = std.math;
+ const mem = std.mem;
+ const posix = std.posix;
+ const wlr = @import("wlroots");
+@@ -100,6 +101,7 @@ lock_manager: LockManager,
+ wm: WindowManager,
+ xkb_bindings: XkbBindings,
+ layer_shell: LayerShell,
++chromium_opacity: f32 = 1.0,
+ 
+ xwayland: if (build_options.xwayland) ?*wlr.Xwayland else void = if (build_options.xwayland) null,
+ new_xsurface: if (build_options.xwayland) wl.Listener(*wlr.XwaylandSurface) else void =
+@@ -183,6 +185,7 @@ pub fn init(server: *Server, runtime_xwayland: bool) !void {
+         .wm = undefined,
+         .xkb_bindings = undefined,
+         .layer_shell = undefined,
++        .chromium_opacity = parseChromiumOpacity(),
+     };
+ 
+     if (renderer.getTextureFormats(@intFromEnum(wlr.BufferCap.dmabuf)) != null) {
+@@ -238,6 +241,33 @@ pub fn init(server: *Server, runtime_xwayland: bool) !void {
+     wl_server.setGlobalFilter(*Server, globalFilter, server);
+ }
+ 
++fn parseChromiumOpacity() f32 {
++    const raw_value = posix.getenv("RIVER_CHROMIUM_OPACITY") orelse return 1.0;
++    const value = mem.trim(u8, raw_value[0..], &std.ascii.whitespace);
++    if (value.len == 0) return 1.0;
++
++    var number = value;
++    var percent = false;
++    if (value[value.len - 1] == '%') {
++        percent = true;
++        number = mem.trimRight(u8, value[0 .. value.len - 1], &std.ascii.whitespace);
++        if (number.len == 0) return 1.0;
++    }
++
++    const parsed = std.fmt.parseFloat(f32, number) catch {
++        log.warn("invalid RIVER_CHROMIUM_OPACITY '{s}', falling back to 1.0", .{value});
++        return 1.0;
++    };
++
++    const opacity = if (percent or parsed > 1.0) parsed / 100.0 else parsed;
++    if (!math.isFinite(opacity) or opacity < 0.0 or opacity > 1.0) {
++        log.warn("RIVER_CHROMIUM_OPACITY '{s}' resolved outside 0.0-1.0, falling back to 1.0", .{value});
++        return 1.0;
++    }
++
++    return opacity;
++}
++
+ /// Free allocated memory and clean up. Note: order is important here
+ pub fn deinit(server: *Server) void {
+     server.sigint_source.remove();
+diff --git a/river/Window.zig b/river/Window.zig
+index 5963a59..9a83833 100644
+--- a/river/Window.zig
++++ b/river/Window.zig
+@@ -8,11 +8,13 @@ const std = @import("std");
+ const assert = std.debug.assert;
+ const math = std.math;
+ const meta = std.meta;
++const mem = std.mem;
+ const posix = std.posix;
+ const wlr = @import("wlroots");
+ const wl = @import("wayland").server.wl;
+ const river = @import("wayland").server.river;
+ const SlotMap = @import("slotmap").SlotMap;
++const pixman = @import("pixman");
+ 
+ const server = &@import("main.zig").server;
+ const util = @import("util.zig");
+@@ -1146,6 +1148,7 @@ pub fn map(window: *Window) !void {
+     assert(window.impl != .destroying);
+     assert(window.state == .initialized);
+     window.state = .mapped;
++    window.applyConfiguredOpacity();
+ }
+ 
+ /// Called by the impl when the surface will no longer be displayed
+@@ -1208,4 +1211,43 @@ pub fn notifyAppId(window: *Window) void {
+     if (window.wlr_toplevel_handle) |handle| {
+         if (window.getAppId()) |app_id| handle.setAppId(app_id);
+     }
++
++    window.applyConfiguredOpacity();
++}
++
++fn isChromium(window: Window) bool {
++    const app_id = window.getAppId() orelse return false;
++    return std.ascii.eqlIgnoreCase(mem.span(app_id), "chromium");
++}
++
++fn configuredOpacity(window: Window) f32 {
++    return if (window.isChromium()) server.chromium_opacity else 1.0;
++}
++
++pub fn applyConfiguredOpacity(window: *Window) void {
++    const opacity = window.configuredOpacity();
++    applyOpacityToTree(window.surfaces.tree, opacity);
++    applyOpacityToTree(window.surfaces.saved_tree, opacity);
++    applyOpacityToTree(window.popup_tree, opacity);
++}
++
++fn applyOpacityToTree(tree: *wlr.SceneTree, opacity: f32) void {
++    var opacity_mut = opacity;
++    tree.node.forEachBuffer(*f32, applyOpacityToBuffer, &opacity_mut);
++}
++
++fn applyOpacityToBuffer(buffer: *wlr.SceneBuffer, _: c_int, _: c_int, opacity: *f32) void {
++    buffer.setOpacity(opacity.*);
++
++    if (opacity.* < 1.0) {
++        var region: pixman.Region32 = undefined;
++        region.init();
++        defer region.deinit();
++        buffer.setOpaqueRegion(&region);
++        return;
++    }
++
++    if (wlr.SceneSurface.tryFromBuffer(buffer)) |scene_surface| {
++        buffer.setOpaqueRegion(&scene_surface.surface.current.@"opaque");
++    }
+ }
+diff --git a/river/XdgPopup.zig b/river/XdgPopup.zig
+index c072d9a..46e8a4a 100644
+--- a/river/XdgPopup.zig
++++ b/river/XdgPopup.zig
+@@ -66,6 +66,13 @@ fn handleDestroy(listener: *wl.Listener(void)) void {
+ fn handleCommit(listener: *wl.Listener(*wlr.Surface), _: *wlr.Surface) void {
+     const xdg_popup: *XdgPopup = @fieldParentPtr("commit", listener);
+ 
++    if (SceneNodeData.fromNode(&xdg_popup.root.node)) |scene_node_data| {
++        switch (scene_node_data.data) {
++            .window => |window| window.applyConfiguredOpacity(),
++            else => {},
++        }
++    }
++
+     if (xdg_popup.wlr_popup.base.initial_commit) {
+         handleReposition(&xdg_popup.reposition);
+     }
+@@ -83,6 +90,13 @@ fn handleNewPopup(listener: *wl.Listener(*wlr.XdgPopup), wlr_popup: *wlr.XdgPopu
+         wlr_popup.resource.postNoMemory();
+         return;
+     };
++
++    if (SceneNodeData.fromNode(&xdg_popup.root.node)) |scene_node_data| {
++        switch (scene_node_data.data) {
++            .window => |window| window.applyConfiguredOpacity(),
++            else => {},
++        }
++    }
+ }
+ 
+ fn handleReposition(listener: *wl.Listener(void)) void {
+diff --git a/river/XdgToplevel.zig b/river/XdgToplevel.zig
+index 2971062..4f5d6f7 100644
+--- a/river/XdgToplevel.zig
++++ b/river/XdgToplevel.zig
+@@ -326,6 +326,7 @@ fn handleCommit(listener: *wl.Listener(*wlr.Surface), _: *wlr.Surface) void {
+         .max_width = @intCast(toplevel.wlr_toplevel.current.max_width),
+         .max_height = @intCast(toplevel.wlr_toplevel.current.max_height),
+     });
++    window.applyConfiguredOpacity();
+ 
+     if (toplevel.wlr_toplevel.base.initial_commit) {
+         assert(window.state != .ready);
+diff --git a/river/XwaylandWindow.zig b/river/XwaylandWindow.zig
+index 7d16d97..8eaabd1 100644
+--- a/river/XwaylandWindow.zig
++++ b/river/XwaylandWindow.zig
+@@ -42,6 +42,7 @@ request_fullscreen: wl.Listener(void) = .init(handleRequestFullscreen),
+ request_minimize: wl.Listener(*wlr.XwaylandSurface.event.Minimize) = .init(handleRequestMinimize),
+ 
+ // Active while the xsurface is associated with a wlr_surface
++commit: wl.Listener(*wlr.Surface) = .init(handleCommit),
+ map: wl.Listener(void) = .init(handleMap),
+ unmap: wl.Listener(void) = .init(handleUnmap),
+ 
+@@ -172,16 +173,23 @@ fn handleDestroy(listener: *wl.Listener(void)) void {
+ fn handleAssociate(listener: *wl.Listener(void)) void {
+     const xwindow: *XwaylandWindow = @fieldParentPtr("associate", listener);
+ 
++    xwindow.xsurface.surface.?.events.commit.add(&xwindow.commit);
+     xwindow.xsurface.surface.?.events.map.add(&xwindow.map);
+     xwindow.xsurface.surface.?.events.unmap.add(&xwindow.unmap);
+ }
+ 
+ fn handleDissociate(listener: *wl.Listener(void)) void {
+     const xwindow: *XwaylandWindow = @fieldParentPtr("dissociate", listener);
++    xwindow.commit.link.remove();
+     xwindow.map.link.remove();
+     xwindow.unmap.link.remove();
+ }
+ 
++fn handleCommit(listener: *wl.Listener(*wlr.Surface), _: *wlr.Surface) void {
++    const xwindow: *XwaylandWindow = @fieldParentPtr("commit", listener);
++    xwindow.window.applyConfiguredOpacity();
++}
++

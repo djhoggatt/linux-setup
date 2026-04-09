@@ -411,28 +411,45 @@ def refresh_clock_and_keys() -> None:
     run(["timedatectl", "set-ntp", "true"])
 
 
-def connect_network() -> None:
+def connect_network() -> dict[str, object]:
     connection_type = prompt_choice("Network connection type", ["wired", "wireless"], "wired")
     if connection_type == "wired":
         print("\nUsing the existing wired network connection.")
-        return
+        return {"connection_type": "wired"}
 
     run(["rfkill", "unblock", "wifi"], check=False)
-    run(["iwctl", "device", "list"])
+    run(["nmcli", "device", "status"], check=False)
     device = prompt("Wireless device")
-
-    run(["iwctl", "station", device, "scan"])
+    run(["nmcli", "device", "wifi", "rescan", "ifname", device], check=False)
     time.sleep(2)
-    run(["iwctl", "station", device, "get-networks"])
+    run(["nmcli", "--colors", "no", "device", "wifi", "list", "ifname", device], check=False)
     ssid = prompt("Wi-Fi network name (SSID)")
     passphrase = getpass.getpass("Wi-Fi passphrase (leave blank for open network): ")
 
-    connect_command = ["iwctl"]
+    connect_command = ["nmcli", "--wait", "30", "device", "wifi", "connect", ssid, "ifname", device]
     if passphrase:
-        connect_command.append(f"--passphrase={passphrase}")
-    connect_command.extend(["station", device, "connect", ssid])
+        connect_command.extend(["password", passphrase])
     run(connect_command)
-    run(["iwctl", "station", device, "show"], check=False)
+    run(["nmcli", "--colors", "no", "device", "show", device], check=False)
+    connection_name = run(
+        ["nmcli", "--get-values", "GENERAL.CONNECTION", "device", "show", device],
+        capture=True,
+    ).stdout.strip()
+    if not connection_name:
+        fail(f"NetworkManager did not report an active connection for {device}.")
+    connection_uuid = run(
+        ["nmcli", "--get-values", "UUID", "connection", "show", connection_name],
+        capture=True,
+    ).stdout.strip()
+    if not connection_uuid:
+        fail(f"Could not determine NetworkManager UUID for connection {connection_name}.")
+    return {
+        "connection_type": "wireless",
+        "wifi_device": device,
+        "wifi_ssid": ssid,
+        "wifi_connection_name": connection_name,
+        "wifi_connection_uuid": connection_uuid,
+    }
 
 
 def cleanup_mounts() -> None:
@@ -566,6 +583,42 @@ def copy_file(
     destination.chmod(mode)
     if owner is not None:
         os.chown(destination, owner[0], owner[1])
+
+
+def copy_live_networkmanager_profile(config: dict[str, object]) -> None:
+    if str(config.get("connection_type", "wired")) != "wireless":
+        return
+
+    connection_uuid = str(config.get("wifi_connection_uuid", "")).strip()
+    if not connection_uuid:
+        fail("Wireless install was selected, but no NetworkManager UUID was staged.")
+
+    source_dir = Path("/etc/NetworkManager/system-connections")
+    if not source_dir.exists():
+        fail(f"NetworkManager connection directory not found in live environment: {source_dir}")
+
+    source_profile: Path | None = None
+    for candidate in source_dir.glob("*.nmconnection"):
+        try:
+            contents = candidate.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if f"uuid={connection_uuid}" in contents:
+            source_profile = candidate
+            break
+
+    if source_profile is None:
+        fail(
+            "Could not find the generated NetworkManager profile for UUID "
+            f"{connection_uuid} in {source_dir}."
+        )
+
+    destination = TARGET_MOUNT / "etc" / "NetworkManager" / "system-connections" / source_profile.name
+    copy_file(source_profile, destination, 0o600)
+
+
+def install_codex() -> None:
+    run(["npm", "install", "-g", "@openai/codex"])
 
 
 def configure_system_identity(config: dict[str, object]) -> None:
@@ -806,6 +859,13 @@ def install_user_files(username: str) -> None:
     )
 
 
+def prime_neovim(username: str) -> None:
+    run_as_user(
+        username,
+        ["nvim", "--headless", "+Lazy! sync", "+qa"],
+    )
+
+
 def enable_services(config: dict[str, object]) -> None:
     run(["systemctl", "enable", "NetworkManager.service"])
     run(["systemctl", "enable", "sshd.service"])
@@ -844,6 +904,7 @@ def install_river_and_kwm() -> None:
     clone_repo(RIVER_REPO, river_dir, RIVER_REF)
     clone_repo(KWM_REPO, kwm_dir, KWM_REF)
     apply_git_patch(river_dir, "patches/river-vmwgfx-dmabuf-workaround.patch")
+    apply_git_patch(river_dir, "patches/river-chromium-translucency.patch")
     run(
         [
             "zig",
@@ -951,9 +1012,10 @@ def collect_config() -> dict[str, object]:
 def run_iso_install() -> None:
     require_root()
     require_uefi()
-    connect_network()
+    network_config = connect_network()
 
     config = collect_config()
+    config.update(network_config)
     validate_disk(str(config["target_disk"]))
 
     esp_partition, root_partition = partition_paths(str(config["target_disk"]))
@@ -965,6 +1027,7 @@ def run_iso_install() -> None:
     partition_disk(str(config["target_disk"]))
     format_and_mount(esp_partition, root_partition)
     pacstrap_system(config)
+    copy_live_networkmanager_profile(config)
 
     config_path = stage_support_files(config)
     try:
@@ -993,7 +1056,9 @@ def run_chroot_setup(config_path: str | None) -> None:
         set_password("root", str(config["root_password"]))
         ensure_user(str(config["username"]), str(config["user_password"]))
         install_machine_files()
+        install_codex()
         install_user_files(str(config["username"]))
+        prime_neovim(str(config["username"]))
         install_river_and_kwm()
         install_backgrounds(str(config["username"]))
         install_go_grip(str(config["username"]))
