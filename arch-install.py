@@ -40,11 +40,13 @@ BASE_PACKAGES = [
     "unzip",
     "neovim",
     "ripgrep",
+    "usbutils",
     "fd",
     "fzf",
     "ghostty",
     "kitty",
     "chromium",
+    "thunar",
     "xorg-xwayland",
     "ly",
     "rofi-wayland",
@@ -141,6 +143,10 @@ KWM_REPO = "https://github.com/kewuaa/kwm.git"
 KWM_REF = "7e30a6f85eb37fb6c3ad33974fd191607ad88069"
 BACKGROUND_REPO = "https://github.com/djhoggatt/root-and-rail.git"
 GO_GRIP_MODULE = "github.com/chrishrb/go-grip@latest"
+DZ60_VIA_UDEV_RULES = """# DZTECH DZ60RGB VIA/QMK HID interfaces
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="445a", ATTRS{idProduct}=="1121", MODE="0660", TAG+="uaccess", TAG+="udev-acl"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="445a", ATTRS{idProduct}=="1121", TAG+="uaccess"
+"""
 
 
 def fail(message: str) -> None:
@@ -760,6 +766,7 @@ def run_as_user(
 
 def install_machine_files() -> None:
     copy_file(asset_file("etc/sudoers.d/10-wheel"), Path("/etc/sudoers.d/10-wheel"), 0o440)
+    write_text(Path("/etc/udev/rules.d/51-dz60-via.rules"), DZ60_VIA_UDEV_RULES, 0o644)
     copy_file(
         asset_file("usr/local/bin/start-river-session"),
         Path("/usr/local/bin/start-river-session"),
