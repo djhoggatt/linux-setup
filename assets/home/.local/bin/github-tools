@@ -1,0 +1,633 @@
+#!/usr/bin/env python3
+
+##
+# @file github-tools
+#
+# @brief Github PR review helpers, wrapping the gh CLI and its gh-pr-review extension to make
+# command line reviews easier. This replaces the old ghrv-* bash functions. Because a script cannot
+# export session state back into the parent shell the way the bash functions did, the active review
+# is persisted to a small state file instead. Stock python only, no third party dependencies.
+
+
+# --------------------------------------------------------------------------------------------------
+#  Imports
+# --------------------------------------------------------------------------------------------------
+
+
+import argparse
+import json
+import os
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
+
+# --------------------------------------------------------------------------------------------------
+# Global Constants
+# --------------------------------------------------------------------------------------------------
+
+
+REVIEW_EVENTS = ("COMMENT", "APPROVE", "REQUEST_CHANGES")
+
+# Find the pending reviews (any author) on every open PR in a repo. We filter to our own login in
+# python, which avoids interpolating the login into the jq filter.
+PENDING_REVIEWS_QUERY = """
+query($owner: String!, $repo: String!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequests(states: OPEN, first: 100, orderBy: { field: UPDATED_AT, direction: DESC }) {
+      nodes {
+        number
+        reviews(last: 100) {
+          nodes {
+            databaseId
+            state
+            author { login }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+PENDING_REVIEWS_JQ = (
+    '.data.repository.pullRequests.nodes[] | .number as $pr | .reviews.nodes[] '
+    '| select(.state == "PENDING") | [$pr, .databaseId, .author.login] | @tsv'
+)
+
+# Attach a file-level (whole file, no line) comment to a pending review.
+ADD_FILE_THREAD_MUTATION = """
+mutation($reviewId: ID!, $path: String!, $body: String!) {
+  addPullRequestReviewThread(input: {
+    pullRequestReviewId: $reviewId,
+    path: $path,
+    body: $body,
+    subjectType: FILE
+  }) {
+    thread {
+      id
+      path
+    }
+  }
+}
+"""
+
+# Read back a single review (by node id) along with its inline comments.
+REVIEW_NODE_QUERY = """
+query($reviewId: ID!) {
+  node(id: $reviewId) {
+    ... on PullRequestReview {
+      state
+      body
+      comments(first: 100) {
+        nodes {
+          path
+          line
+          originalLine
+          body
+        }
+      }
+    }
+  }
+}
+"""
+
+
+# --------------------------------------------------------------------------------------------------
+# Class/Functions
+# --------------------------------------------------------------------------------------------------
+
+
+def _state_path():
+    base = os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state")
+    return Path(base) / "github-tools" / "review.json"
+
+
+def _load_state():
+    """
+    Return the active review state dict, or None if there is no active review.
+    """
+
+    try:
+        return json.loads(_state_path().read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _save_state(state):
+    path = _state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2) + "\n")
+
+
+def _clear_state():
+    try:
+        _state_path().unlink()
+    except OSError:
+        pass
+
+
+def _require_state():
+    """
+    Return the active review state, or exit with a helpful message if there is none.
+    """
+
+    state = _load_state()
+    if not state or not state.get("review_id"):
+        raise SystemExit("No active review. Run 'github-tools start' first.")
+
+    return state
+
+
+def _gh(args, check=True):
+    """
+    Run gh and return its stdout. Errors exit with gh's stderr surfaced.
+    """
+
+    result = subprocess.run(
+        ["gh", *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if check and result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        raise SystemExit(f"gh {' '.join(args)} failed: {message}")
+
+    return result.stdout
+
+
+def _gh_json(args):
+    return json.loads(_gh(args) or "null")
+
+
+def _current_repo():
+    return _gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).strip()
+
+
+def _my_login():
+    return _gh(["api", "user", "--jq", ".login"]).strip()
+
+
+def _pick_from_fzf(lines, prompt, delimiter=None, with_nth=None):
+    """
+    Present the given lines in fzf and return the selected line, or None if cancelled.
+    """
+
+    command = ["fzf", "--ansi", "--reverse", "--prompt", prompt]
+    if delimiter:
+        command.extend(["--delimiter", delimiter])
+    if with_nth:
+        command.extend(["--with-nth", with_nth])
+
+    result = subprocess.run(
+        command,
+        input="\n".join(lines) + "\n",
+        stdout=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+
+    return result.stdout.strip() or None
+
+
+def _editor():
+    for variable in ("GH_PR_REVIEW_EDITOR", "VISUAL", "EDITOR"):
+        value = os.environ.get(variable)
+        if value:
+            return value
+
+    configured = subprocess.run(
+        ["git", "config", "--get", "core.editor"],
+        stdout=subprocess.PIPE,
+        text=True,
+        check=False,
+    ).stdout.strip()
+
+    return configured or "nvim"
+
+
+def _compose_comment(context):
+    """
+    Open an editor for the comment body and return it, or None if left empty.
+
+    Lines starting with '#' are treated as instructions and stripped, git-commit style, so the
+    given context can be shown without ending up in the comment.
+    """
+
+    header = (
+        f"\n\n# Composing comment for {context}.\n"
+        "# Lines starting with '#' are ignored. Save an empty comment to abort.\n"
+    )
+
+    with NamedTemporaryFile(mode="w+", suffix=".md", delete=False) as handle:
+        handle.write(header)
+        handle.flush()
+        temp_path = handle.name
+
+    try:
+        subprocess.run(
+            f"{_editor()} {shlex.quote(temp_path)}",
+            shell=True,
+            check=False,
+        )
+        raw = Path(temp_path).read_text()
+    finally:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+
+    body = "\n".join(
+        line for line in raw.splitlines() if not line.lstrip().startswith("#")
+    ).strip()
+
+    return body or None
+
+
+def _pick_pr_file(state):
+    """
+    Pick a changed file from the PR under review, falling back to manual entry.
+    """
+
+    files = _gh([
+        "pr", "view", state["pr"],
+        "-R", state["repo"],
+        "--json", "files",
+        "-q", ".files[].path",
+    ], check=False).splitlines()
+    files = [line for line in files if line.strip()]
+
+    if files:
+        choice = _pick_from_fzf(files, "file> ")
+        if choice is not None:
+            return choice
+
+    entered = input("path: ").strip()
+    return entered or None
+
+
+def _append_overall(state, body):
+    if state.get("body"):
+        state["body"] = state["body"] + "\n\n" + body
+    else:
+        state["body"] = body
+    _save_state(state)
+
+
+# --------------------------------------------------------------------------------------------------
+# Commands
+# --------------------------------------------------------------------------------------------------
+
+
+def start(args):
+    """
+    Start a pending review.
+
+    With a PR number, start a review on that PR (defaulting the repo to the current one). Without a
+    number, list the open review requests assigned to me and let me pick one.
+    """
+
+    if args.pr:
+        pr = str(args.pr)
+        repo = args.repo or _current_repo()
+    else:
+        requests = _gh_json([
+            "search", "prs", "--review-requested=@me", "--state=open",
+            "--json", "number,title,repository", "--limit", "50",
+        ]) or []
+        if not requests:
+            print("No open review requests.")
+            return 0
+
+        lines = [
+            f"{request['repository']['nameWithOwner']}#{request['number']}\t{request['title']}"
+            for request in requests
+        ]
+        selection = _pick_from_fzf(lines, "review> ", delimiter="\t", with_nth="1,2")
+        if selection is None:
+            return 1
+
+        key = selection.split("\t", 1)[0]
+        repo, _, pr = key.rpartition("#")
+
+    started = _gh_json(["pr-review", "review", "--start", "-R", repo, str(pr)])
+    review_id = (started or {}).get("id")
+    if not review_id:
+        print("Failed to start review.")
+        return 1
+
+    _save_state({"review_id": review_id, "pr": str(pr), "repo": repo, "body": ""})
+    print(f"review={review_id}\npr={pr}\nrepo={repo}")
+    return 0
+
+
+def discard(args):
+    """
+    Discard the pending review(s) for the current user in the given repo.
+    """
+
+    state = _load_state()
+    repo = args.repo or (state or {}).get("repo") or _current_repo()
+    owner, _, name = repo.partition("/")
+    me = _my_login()
+
+    rows = _gh([
+        "api", "graphql",
+        "-F", f"owner={owner}",
+        "-F", f"repo={name}",
+        "-f", f"query={PENDING_REVIEWS_QUERY}",
+        "--jq", PENDING_REVIEWS_JQ,
+    ]).splitlines()
+
+    pending = []
+    for row in rows:
+        fields = row.split("\t")
+        if len(fields) == 3 and fields[2] == me:
+            pending.append((fields[0], fields[1]))
+
+    if not pending:
+        print(f"No pending reviews found in {repo}.")
+        _clear_state()
+        return 0
+
+    for pr, review_database_id in pending:
+        _gh([
+            "api", "-X", "DELETE",
+            f"repos/{owner}/{name}/pulls/{pr}/reviews/{review_database_id}",
+        ])
+
+    _clear_state()
+    print(f"Discarded {len(pending)} pending review(s) in {repo}.")
+    return 0
+
+
+def comment(_args):
+    """
+    Add a comment to the active review, prompting for the kind and the body.
+    """
+
+    state = _require_state()
+
+    kind = _pick_from_fzf(["overall", "file", "line"], "comment kind> ")
+    if kind is None:
+        return 1
+
+    if kind == "overall":
+        body = _compose_comment(f"{state['repo']}#{state['pr']} (overall)")
+        if body is None:
+            print("Empty comment, nothing queued.")
+            return 1
+        _append_overall(state, body)
+        print("Queued overall comment for submit.")
+        return 0
+
+    path = _pick_pr_file(state)
+    if not path:
+        print("No file selected.")
+        return 1
+
+    if kind == "file":
+        body = _compose_comment(f"{state['repo']}#{state['pr']} {path} (file)")
+        if body is None:
+            print("Empty comment, nothing added.")
+            return 1
+        _gh([
+            "api", "graphql",
+            "-f", f"query={ADD_FILE_THREAD_MUTATION}",
+            "-F", f"reviewId={state['review_id']}",
+            "-F", f"path={path}",
+            "-f", f"body={body}",
+        ])
+        print(f"Added file comment on {path}.")
+        return 0
+
+    # kind == "line"
+    raw_line = input("line: ").strip()
+    if not raw_line.isdigit():
+        print("Line must be a number.")
+        return 1
+    line = raw_line
+
+    body = _compose_comment(f"{state['repo']}#{state['pr']} {path}:{line} (line)")
+    if body is None:
+        print("Empty comment, nothing added.")
+        return 1
+
+    _gh([
+        "pr-review", "review", "--add-comment",
+        "--review-id", state["review_id"],
+        "--path", path,
+        "--line", line,
+        "--body", body,
+        "-R", state["repo"], state["pr"],
+    ])
+    print(f"Added line comment on {path}:{line}.")
+    return 0
+
+
+def submit(args):
+    """
+    Submit the active review, then clear the local state.
+
+    The event may be given as the first argument; if it is omitted, pick one interactively.
+    """
+
+    state = _require_state()
+
+    extra = list(args.args)
+    event = None
+    if extra and extra[0].upper() in REVIEW_EVENTS:
+        event = extra.pop(0).upper()
+
+    if event is None:
+        event = _pick_from_fzf(list(REVIEW_EVENTS), "event> ")
+        if event is None:
+            return 1
+
+    body = " ".join(extra) if extra else state.get("body", "")
+
+    command = [
+        "pr-review", "review", "--submit",
+        "--review-id", state["review_id"],
+        "--event", event,
+        "-R", state["repo"], state["pr"],
+    ]
+    if body:
+        command.extend(["--body", body])
+
+    _gh(command)
+    _clear_state()
+    print(f"Submitted review ({event}) on {state['repo']}#{state['pr']}.")
+    return 0
+
+
+def status(args):
+    """
+    List all existing comments on the PR under review.
+
+    With --review, instead show the active review and the comments queued/attached to it.
+    """
+
+    if args.review:
+        return _review_status()
+
+    return _list_pr_comments()
+
+
+def _review_status():
+    """
+    Show the active review (if any) and the comments queued/attached to it.
+    """
+
+    state = _load_state()
+    if not state or not state.get("review_id"):
+        print("No active review.")
+        return 0
+
+    print(f"Review in progress on {state['repo']}#{state['pr']}")
+    print(f"  review-id: {state['review_id']}")
+
+    overall = state.get("body", "")
+    if overall:
+        print("\nQueued overall comment:")
+        for line in overall.splitlines():
+            print(f"  {line}")
+
+    node = _gh_json([
+        "api", "graphql",
+        "-f", f"query={REVIEW_NODE_QUERY}",
+        "-F", f"reviewId={state['review_id']}",
+    ])
+    comments = (
+        (((node or {}).get("data") or {}).get("node") or {}).get("comments") or {}
+    ).get("nodes") or []
+
+    if comments:
+        print("\nInline comments on this review:")
+        for entry in comments:
+            line = entry.get("line") or entry.get("originalLine") or "-"
+            print(f"  {entry.get('path')}:{line}")
+            for body_line in (entry.get("body") or "").splitlines():
+                print(f"      {body_line}")
+    elif not overall:
+        print("\nNo comments yet.")
+
+    return 0
+
+
+# --------------------------------------------------------------------------------------------------
+# Helpers used by commands
+# --------------------------------------------------------------------------------------------------
+
+
+def _list_pr_comments():
+    """
+    Print all existing comments on the PR under review: review summaries and inline comments.
+    """
+
+    state = _require_state()
+    owner, _, name = state["repo"].partition("/")
+    pr = state["pr"]
+
+    reviews = _gh_json([
+        "api", "--paginate", f"repos/{owner}/{name}/pulls/{pr}/reviews",
+    ]) or []
+    summaries = [review for review in reviews if (review.get("body") or "").strip()]
+
+    if summaries:
+        print("Review summaries:")
+        for review in summaries:
+            who = (review.get("user") or {}).get("login", "?")
+            state_label = review.get("state", "")
+            print(f"  {who} [{state_label}]")
+            for line in review["body"].splitlines():
+                print(f"      {line}")
+        print()
+
+    inline = _gh_json([
+        "api", "--paginate", f"repos/{owner}/{name}/pulls/{pr}/comments",
+    ]) or []
+
+    if inline:
+        print("Inline comments:")
+        for entry in inline:
+            who = (entry.get("user") or {}).get("login", "?")
+            line = entry.get("line") or entry.get("original_line") or "-"
+            print(f"  {entry.get('path')}:{line}  ({who})")
+            for body_line in (entry.get("body") or "").splitlines():
+                print(f"      {body_line}")
+
+    if not summaries and not inline:
+        print(f"No comments on {state['repo']}#{pr}.")
+
+    return 0
+
+
+# --------------------------------------------------------------------------------------------------
+# Script
+# --------------------------------------------------------------------------------------------------
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="github-tools",
+        description="Github PR review helpers wrapping gh and gh-pr-review.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    start_parser = subparsers.add_parser(
+        "start",
+        help="Start a review; with no PR number, pick from my review requests.",
+    )
+    start_parser.add_argument("pr", nargs="?", help="Pull request number")
+    start_parser.add_argument("repo", nargs="?", help="owner/repo (defaults to current)")
+    start_parser.set_defaults(func=start)
+
+    discard_parser = subparsers.add_parser(
+        "discard",
+        help="Discard my pending review(s) in the repo.",
+    )
+    discard_parser.add_argument("repo", nargs="?", help="owner/repo (defaults to active/current)")
+    discard_parser.set_defaults(func=discard)
+
+    comment_parser = subparsers.add_parser(
+        "comment",
+        help="Add a comment to the active review (interactive).",
+    )
+    comment_parser.set_defaults(func=comment)
+
+    submit_parser = subparsers.add_parser(
+        "submit",
+        help="Submit the active review.",
+    )
+    submit_parser.add_argument(
+        "args",
+        nargs=argparse.REMAINDER,
+        help="Optional event (COMMENT|APPROVE|REQUEST_CHANGES) and/or body text.",
+    )
+    submit_parser.set_defaults(func=submit)
+
+    status_parser = subparsers.add_parser(
+        "status",
+        help="List all existing comments on the PR.",
+    )
+    status_parser.add_argument(
+        "--review",
+        action="store_true",
+        help="Show the active review and its comments instead.",
+    )
+    status_parser.set_defaults(func=status)
+
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main() or 0)
+    except KeyboardInterrupt:
+        sys.exit(130)

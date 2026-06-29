@@ -12,7 +12,10 @@
 [submodule]
 	recurse = false
 [alias]
-	cleanup = ! git branch -d `git branch --merged | grep -v \\*`
+	cleanup = !git-tools cleanup
 	pup = !git restore . && git pull && git submodule init && git submodule update && git submodule status && git status
+	graph = !git-tools graph
+	localdiff = !git-tools localdiff
+	filelog = !git-tools filelog
 [difftool "vscode"]
 	cmd = code --wait --reuse-window --diff "$LOCAL" "$REMOTE"

@@ -55,14 +55,15 @@ sudo apt install -y gcc-arm-none-eabi
 # experience I've had so far, and integrates well with python scripting.
 sudo apt install -y ninja-build meson
 
-# Install invoke
-# Motivation: I do a lot of scripting in python, and invoke makes it easy to create command line
-# tools for running common tasks.
-sudo apt install -y python3-invoke
-mkdir -p "$HOME/tasks"
-cp "$assets_home/.invoke.yaml" "$HOME/.invoke.yaml"
-cp "$assets_home/tasks/tasks.py" "$HOME/tasks/tasks.py"
-cp "$assets_home/tasks/git_tasks.py" "$HOME/tasks/git_tasks.py"
+# Install personal command line tools
+# Motivation: I do a lot of scripting in python. These are stock-python scripts (no third party
+# tooling) exposed on PATH. git-tools is wired up as git aliases (git graph/localdiff/filelog),
+# and jira-tools wraps the jira-cli.
+mkdir -p "$HOME/.local/bin"
+cp "$assets_home/.local/bin/git-tools" "$HOME/.local/bin/git-tools"
+cp "$assets_home/.local/bin/github-tools" "$HOME/.local/bin/github-tools"
+cp "$assets_home/.local/bin/jira-tools" "$HOME/.local/bin/jira-tools"
+chmod 755 "$HOME/.local/bin/git-tools" "$HOME/.local/bin/github-tools" "$HOME/.local/bin/jira-tools"
 
 # Install Zig
 # Motivation: Zig is, in my opinion, the best replacement for C. It adds in all of the features that

@@ -1,7 +1,11 @@
+#!/usr/bin/env python3
+
 ##
-# @file git_tasks.py
+# @file git-tools
 #
-# @brief Git related invoke tasks. See https://docs.pyinvoke.org/en/stable/ for more info.
+# @brief Git helper commands, wired up as git aliases (e.g. "git graph", "git localdiff",
+# "git filelog"). This replaces the old invoke based git_tasks.py, so that no third party tooling
+# is required beyond a stock python install.
 
 
 # --------------------------------------------------------------------------------------------------
@@ -9,11 +13,10 @@
 # --------------------------------------------------------------------------------------------------
 
 
+import argparse
 import subprocess
+import sys
 from tempfile import NamedTemporaryFile
-
-from invoke import task
-from invoke import Collection
 
 
 # --------------------------------------------------------------------------------------------------
@@ -33,7 +36,7 @@ COMMIT_FORMAT = (
 # --------------------------------------------------------------------------------------------------
 
 
-def _do_diff(ctx, left_file, right_file):
+def _do_diff(left_file, right_file):
     try:
         subprocess.run(
             [
@@ -55,7 +58,8 @@ def _write_git_blob_to_temp(file_handle, revision, file):
     """
     Write the file contents from the given revision to a temp file.
 
-    Missing files are treated as empty so diffs still open for adds/deletes.
+    Missing files are treated as empty so diffs still open for adds/deletes. An empty revision
+    refers to the staged (index) version of the file.
     """
 
     result = subprocess.run(
@@ -253,7 +257,7 @@ def _get_changed_files_for_commits(commits):
     ]
 
 
-def _file_diff_between_revisions(ctx, left_revision, right_revision, file):
+def _file_diff_between_revisions(left_revision, right_revision, file):
     """
     Vim diff on the given file between two revisions.
     """
@@ -263,39 +267,38 @@ def _file_diff_between_revisions(ctx, left_revision, right_revision, file):
             _write_git_blob_to_temp(left_file, left_revision, file)
             _write_git_blob_to_temp(right_file, right_revision, file)
 
-            _do_diff(ctx, left_file.name, right_file.name)
+            _do_diff(left_file.name, right_file.name)
 
 
-def _commit_file_diff(ctx, commit, file):
-    """
-    Vim diff on the given file, for the given commit, against it's parent.
-    """
-
-    base_revision, target_revision = _get_revisions_for_commits([commit])
-    _file_diff_between_revisions(ctx, base_revision, target_revision, file)
-
-
-def _commit_range_file_diff(ctx, commits, file):
+def _commit_range_file_diff(commits, file):
     """
     Vim diff on the given file for the selected commit range.
     """
 
     base_revision, target_revision = _get_revisions_for_commits(commits)
-    _file_diff_between_revisions(ctx, base_revision, target_revision, file)
+    _file_diff_between_revisions(base_revision, target_revision, file)
 
 
-def _local_diff(ctx, file):
+def _local_diff(file, base_revision):
     """
-    Vim diff on the given file, against it's parent.
+    Vim diff on the given file, comparing the given base revision against the current working file.
+
+    The base revision is "HEAD" for unstaged work (compare the committed file against the working
+    tree) or "" for staged work (compare the staged/index version against the working tree). Either
+    way the right hand side is the live working file, so it remains editable during the diff.
     """
 
     with NamedTemporaryFile(mode='w', delete=True) as left_file:
-        _write_git_blob_to_temp(left_file, "HEAD", file)
-        _do_diff(ctx, left_file.name, file)
+        _write_git_blob_to_temp(left_file, base_revision, file)
+        _do_diff(left_file.name, file)
 
 
-@task
-def graph(ctx):
+# --------------------------------------------------------------------------------------------------
+# Commands
+# --------------------------------------------------------------------------------------------------
+
+
+def graph(_args):
     """
     Interactive git log browser: pick commit range, pick file, nvim diff.
     """
@@ -355,16 +358,20 @@ def graph(ctx):
                 print("Error picking file!")
                 continue
 
-            _commit_range_file_diff(ctx, commits, file)
+            _commit_range_file_diff(commits, file)
 
 
-@task(help={
-    "staged": "Applies the diff to staged changes"
-    })
-def diff(ctx, staged=False):
+def localdiff(args):
     """
     Interactive diff for the current changes in the project.
+
+    By default this compares the committed (HEAD) version against the working tree. With --staged it
+    compares the staged (index) version against the working tree, which keeps the staged changes in
+    view while still allowing edits to the working file.
     """
+
+    staged = args.staged
+    base_revision = "" if staged else "HEAD"
 
     while True:
         with NamedTemporaryFile(mode='r', delete=True) as file_file:
@@ -383,16 +390,15 @@ def diff(ctx, staged=False):
                 print("Error picking file!")
                 continue
 
-            _local_diff(ctx, file)
+            _local_diff(file, base_revision)
 
 
-@task(positional=["file"], help={
-    "file": "Path to the file",
-    })
-def filelog(ctx, file):
+def filelog(args):
     """
     Interactive diff through a specific file's history.
     """
+
+    file = args.file
 
     commit_query = ""
     selected_commit = None
@@ -434,14 +440,81 @@ def filelog(ctx, file):
             continue
 
         selected_commit = commits[0]
-        _commit_range_file_diff(ctx, commits, file)
+        _commit_range_file_diff(commits, file)
+
+
+def cleanup(_args):
+    """
+    Delete all local branches except the one currently checked out.
+
+    This force-deletes (git branch -D) regardless of merge status, so unmerged work is removed too.
+    Remote-tracking branches are left untouched.
+    """
+
+    current = _run_git_stdout(["rev-parse", "--abbrev-ref", "HEAD"]).strip()
+    branches = [
+        branch.strip()
+        for branch in _run_git_stdout(
+            ["for-each-ref", "--format=%(refname:short)", "refs/heads/"]
+        ).splitlines()
+        if branch.strip() and branch.strip() != current
+    ]
+
+    if not branches:
+        print("No other local branches to delete.")
+        return
+
+    subprocess.run(["git", "branch", "-D", *branches], check=False)
 
 
 # --------------------------------------------------------------------------------------------------
 # Script
 # --------------------------------------------------------------------------------------------------
 
-git_tasks = Collection()
-git_tasks.add_task(graph)
-git_tasks.add_task(diff)
-git_tasks.add_task(filelog)
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="git-tools",
+        description="Interactive git helpers, intended to be used via git aliases.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    graph_parser = subparsers.add_parser(
+        "graph",
+        help="Interactive git log browser: pick commit range, pick file, nvim diff.",
+    )
+    graph_parser.set_defaults(func=graph)
+
+    localdiff_parser = subparsers.add_parser(
+        "localdiff",
+        help="Interactive diff for the current changes in the project.",
+    )
+    localdiff_parser.add_argument(
+        "--staged",
+        action="store_true",
+        help="Diff the staged (index) version against the working tree, rather than HEAD.",
+    )
+    localdiff_parser.set_defaults(func=localdiff)
+
+    filelog_parser = subparsers.add_parser(
+        "filelog",
+        help="Interactive diff through a specific file's history.",
+    )
+    filelog_parser.add_argument("file", help="Path to the file")
+    filelog_parser.set_defaults(func=filelog)
+
+    cleanup_parser = subparsers.add_parser(
+        "cleanup",
+        help="Force-delete all local branches except the one checked out.",
+    )
+    cleanup_parser.set_defaults(func=cleanup)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)

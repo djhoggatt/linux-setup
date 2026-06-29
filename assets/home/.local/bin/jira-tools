@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+
+##
+# @file jira-tools
+#
+# @brief Jira helper commands wrapping the jira-cli (https://github.com/ankitpokhrel/jira-cli),
+# bundling the flags I always reach for into short subcommands. Stock python only, no third party
+# dependencies.
+
+
+# --------------------------------------------------------------------------------------------------
+#  Imports
+# --------------------------------------------------------------------------------------------------
+
+
+import argparse
+import base64
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+
+# --------------------------------------------------------------------------------------------------
+# Global Constants
+# --------------------------------------------------------------------------------------------------
+
+
+DEFAULT_CONFIG = Path.home() / ".config" / ".jira" / ".config.yml"
+
+
+# --------------------------------------------------------------------------------------------------
+# Class/Functions
+# --------------------------------------------------------------------------------------------------
+
+
+def _jira_me():
+    """
+    Return the current user's jira account, as reported by "jira me".
+    """
+
+    result = subprocess.run(
+        ["jira", "me"],
+        stdout=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def _jira_config():
+    """
+    Return (server, login) from the jira-cli config file.
+
+    jira-cli stores these as top-level keys in its yaml config. We pull them out with a small regex
+    rather than depending on a yaml module, so this stays stock-python only. The config path honours
+    JIRA_CONFIG_FILE, matching jira-cli itself.
+    """
+
+    config_path = Path(os.environ.get("JIRA_CONFIG_FILE", DEFAULT_CONFIG))
+    try:
+        text = config_path.read_text()
+    except OSError as error:
+        raise SystemExit(f"Could not read jira config at {config_path}: {error}")
+
+    values = {}
+    for key in ("server", "login"):
+        match = re.search(rf"^{key}:[ \t]*(.+?)[ \t]*$", text, re.MULTILINE)
+        if match:
+            values[key] = match.group(1)
+
+    if "server" not in values or "login" not in values:
+        raise SystemExit(f"Could not find server/login in {config_path}.")
+
+    return values["server"].rstrip("/"), values["login"]
+
+
+def _jira_api(path):
+    """
+    Make an authenticated GET against the Jira Cloud REST API and return the parsed JSON.
+
+    Reuses the same basic auth that jira-cli uses: the login from the config plus the API token from
+    the JIRA_API_TOKEN environment variable.
+    """
+
+    token = os.environ.get("JIRA_API_TOKEN")
+    if not token:
+        raise SystemExit("JIRA_API_TOKEN is not set (jira-cli's API token).")
+
+    server, login = _jira_config()
+    credentials = base64.b64encode(f"{login}:{token}".encode()).decode()
+    request = urllib.request.Request(
+        f"{server}{path}",
+        headers={
+            "Authorization": f"Basic {credentials}",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        raise SystemExit(f"Jira API request failed ({error.code}): {path}")
+    except urllib.error.URLError as error:
+        raise SystemExit(f"Could not reach Jira: {error.reason}")
+
+
+def _get_transitions(ticket):
+    """
+    Return the list of available transitions for the given ticket, as (name, target) tuples.
+    """
+
+    data = _jira_api(f"/rest/api/3/issue/{ticket}/transitions")
+    return [
+        (transition["name"], transition.get("to", {}).get("name", ""))
+        for transition in data.get("transitions", [])
+    ]
+
+
+def _pick_from_fzf(lines, prompt):
+    """
+    Present the given lines in fzf and return the selected line, or None if cancelled.
+    """
+
+    result = subprocess.run(
+        ["fzf", "--ansi", "--reverse", "--prompt", prompt],
+        input="\n".join(lines) + "\n",
+        stdout=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+
+    return result.stdout.strip() or None
+
+
+# --------------------------------------------------------------------------------------------------
+# Commands
+# --------------------------------------------------------------------------------------------------
+
+
+def issue_list(args):
+    """
+    List the issues assigned to me in the current sprint.
+
+    Equivalent to: jira sprint list --current -a$(jira me)
+    """
+
+    command = ["jira", "sprint", "list", "--current", f"-a{_jira_me()}", *args.extra]
+    return subprocess.run(command, check=False).returncode
+
+
+def advance(args):
+    """
+    Interactively transition a ticket to a new status.
+
+    Fetches the statuses the ticket can currently move to, lets me pick one with fzf, then hands the
+    selection off to "jira issue move" to perform the transition.
+    """
+
+    ticket = args.ticket.upper()
+
+    transitions = _get_transitions(ticket)
+    if not transitions:
+        print(f"No available transitions for {ticket}.")
+        return 1
+
+    # Map the displayed label back to the transition name jira expects. The label shows the target
+    # status, falling back to the transition name when they differ.
+    options = {}
+    for name, target in transitions:
+        label = target or name
+        options[label] = name
+
+    selection = _pick_from_fzf(list(options), f"{ticket} status> ")
+    if selection is None:
+        return 1
+
+    state = options[selection]
+    return subprocess.run(["jira", "issue", "move", ticket, state], check=False).returncode
+
+
+# --------------------------------------------------------------------------------------------------
+# Script
+# --------------------------------------------------------------------------------------------------
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="jira-tools",
+        description="Jira helpers wrapping the jira-cli.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    list_parser = subparsers.add_parser(
+        "list",
+        help="List my issues in the current sprint.",
+    )
+    list_parser.add_argument(
+        "extra",
+        nargs=argparse.REMAINDER,
+        help="Extra arguments passed through to 'jira sprint list'.",
+    )
+    list_parser.set_defaults(func=issue_list)
+
+    advance_parser = subparsers.add_parser(
+        "advance",
+        help="Interactively transition a ticket to a new status.",
+    )
+    advance_parser.add_argument("ticket", help="Ticket key, e.g. XIO-1234")
+    advance_parser.set_defaults(func=advance)
+
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main() or 0)
+    except KeyboardInterrupt:
+        sys.exit(130)

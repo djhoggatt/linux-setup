@@ -75,7 +75,6 @@ BASE_PACKAGES = [
     "zig",
     "nodejs",
     "npm",
-    "python-invoke",
     "arm-none-eabi-gcc",
     "arm-none-eabi-newlib",
     "lua-language-server",
@@ -809,7 +808,6 @@ def install_user_files(username: str) -> None:
         home / "docs" / "templates",
         home / "docs" / "videos",
         home / "downloads",
-        home / "tasks",
     ]
     for directory in directories:
         ensure_dir(directory, owner=owner)
@@ -817,7 +815,6 @@ def install_user_files(username: str) -> None:
     asset_copy_map = [
         ("home/.bashrc", home / ".bashrc", 0o644),
         ("home/.gitconfig", home / ".gitconfig", 0o644),
-        ("home/.invoke.yaml", home / ".invoke.yaml", 0o644),
         ("home/.config/chromium-flags.conf", home / ".config" / "chromium-flags.conf", 0o644),
         (
             "home/.config/chromium/External Extensions/dbepggeogbaibhgnhhndojpepiihcmeb.json",
@@ -836,6 +833,9 @@ def install_user_files(username: str) -> None:
         ("home/.config/rofi/config.rasi", home / ".config" / "rofi" / "config.rasi", 0o644),
         ("home/.config/user-dirs.dirs", home / ".config" / "user-dirs.dirs", 0o644),
         ("home/monitor-config.py", home / "monitor-config.py", 0o755),
+        ("home/.local/bin/git-tools", home / ".local" / "bin" / "git-tools", 0o755),
+        ("home/.local/bin/github-tools", home / ".local" / "bin" / "github-tools", 0o755),
+        ("home/.local/bin/jira-tools", home / ".local" / "bin" / "jira-tools", 0o755),
         ("home/.local/bin/ghostty-launch", home / ".local" / "bin" / "ghostty-launch", 0o755),
         ("home/.local/bin/kwm-status.zig", home / ".local" / "bin" / "kwm-status.zig", 0o644),
         ("home/.local/bin/lock-screen", home / ".local" / "bin" / "lock-screen", 0o755),
@@ -847,8 +847,6 @@ def install_user_files(username: str) -> None:
             home / ".local" / "share" / "applications" / "com.mitchellh.ghostty.desktop",
             0o644,
         ),
-        ("home/tasks/tasks.py", home / "tasks" / "tasks.py", 0o644),
-        ("home/tasks/git_tasks.py", home / "tasks" / "git_tasks.py", 0o644),
     ]
     for source_name, destination, mode in asset_copy_map:
         copy_file(asset_file(source_name), destination, mode, owner=owner)
