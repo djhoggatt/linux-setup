@@ -51,6 +51,7 @@ BASE_PACKAGES = [
     "ly",
     "rofi-wayland",
     "awww",
+    "mpv",
     "gtklock",
     "fastfetch",
     "bottom",
@@ -140,6 +141,8 @@ RIVER_REPO = "https://codeberg.org/river/river.git"
 RIVER_REF = "79e09c3628a88b7b71fc178dccd1b5ab8e7681b0"
 KWM_REPO = "https://github.com/kewuaa/kwm.git"
 KWM_REF = "7e30a6f85eb37fb6c3ad33974fd191607ad88069"
+MPVPAPER_REPO = "https://github.com/GhostNaN/mpvpaper.git"
+MPVPAPER_REF = "1.8"
 BACKGROUND_REPO = "https://github.com/djhoggatt/root-and-rail.git"
 GO_GRIP_MODULE = "github.com/chrishrb/go-grip@latest"
 DZ60_VIA_UDEV_RULES = """# DZTECH DZ60RGB VIA/QMK HID interfaces
@@ -873,6 +876,7 @@ def prime_neovim(username: str) -> None:
 
 def enable_services(config: dict[str, object]) -> None:
     run(["systemctl", "enable", "NetworkManager.service"])
+    run(["systemctl", "enable", "systemd-timesyncd.service"])
     run(["systemctl", "enable", "sshd.service"])
     if bool(config.get("is_vm")):
         run(["systemctl", "enable", "vmtoolsd.service"], check=False)
@@ -947,6 +951,20 @@ def install_river_and_kwm() -> None:
         "kwm build did not produce a usable binary. "
         f"Checked {installed_kwm} and {fallback_kwm}."
     )
+
+
+def install_mpvpaper() -> None:
+    mpvpaper_dir = INSTALLER_BUILD_ROOT / "mpvpaper"
+    INSTALLER_BUILD_ROOT.mkdir(parents=True, exist_ok=True)
+
+    clone_repo(MPVPAPER_REPO, mpvpaper_dir, MPVPAPER_REF)
+    run(["meson", "setup", "build", "--prefix", "/usr/local"], cwd=str(mpvpaper_dir))
+    run(["meson", "compile", "-C", "build"], cwd=str(mpvpaper_dir))
+    run(["meson", "install", "-C", "build"], cwd=str(mpvpaper_dir))
+
+    man_source = mpvpaper_dir / "mpvpaper.man"
+    if man_source.exists():
+        copy_file(man_source, Path("/usr/local/share/man/man1/mpvpaper.1"), 0o644)
 
 
 def install_backgrounds(username: str) -> None:
@@ -1065,6 +1083,7 @@ def run_chroot_setup(config_path: str | None) -> None:
         install_user_files(str(config["username"]))
         prime_neovim(str(config["username"]))
         install_river_and_kwm()
+        install_mpvpaper()
         install_backgrounds(str(config["username"]))
         install_go_grip(str(config["username"]))
         enable_services(config)

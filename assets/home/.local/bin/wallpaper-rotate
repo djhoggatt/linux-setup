@@ -3,6 +3,7 @@ set -euo pipefail
 
 wallpaper_dir="${1:-$HOME/backgrounds}"
 last=""
+mpvpaper_pidfile=""
 
 ensure_wayland_display() {
     if [ -n "${WAYLAND_DISPLAY:-}" ]; then
@@ -38,15 +39,63 @@ start_daemon() {
     exit 1
 }
 
+stop_video_wallpaper() {
+    if [ -z "$mpvpaper_pidfile" ] || [ ! -f "$mpvpaper_pidfile" ]; then
+        return
+    fi
+
+    pid="$(cat "$mpvpaper_pidfile")"
+    rm -f "$mpvpaper_pidfile"
+    if [ -z "$pid" ]; then
+        return
+    fi
+
+    kill -TERM -- "-$pid" >/dev/null 2>&1 || true
+    for _ in $(seq 1 20); do
+        if ! kill -0 -- "-$pid" >/dev/null 2>&1; then
+            return
+        fi
+        sleep 0.1
+    done
+    kill -KILL -- "-$pid" >/dev/null 2>&1 || true
+}
+
+start_video_wallpaper() {
+    local path="$1"
+
+    if ! command -v mpvpaper >/dev/null 2>&1; then
+        echo "mpvpaper is required for video wallpaper: $path" >&2
+        return
+    fi
+
+    stop_video_wallpaper
+    setsid mpvpaper -o "no-audio loop-file=inf hwdec=auto" ALL "$path" >/dev/null 2>&1 &
+    echo "$!" > "$mpvpaper_pidfile"
+}
+
+media_type() {
+    case "${1,,}" in
+        *.jpg|*.jpeg|*.png|*.webp)
+            echo "image"
+            ;;
+        *.gif|*.mp4|*.m4v|*.mkv|*.mov|*.webm|*.avi)
+            echo "video"
+            ;;
+    esac
+}
+
 pick_wallpaper() {
     find "$wallpaper_dir" -maxdepth 1 -type f \
         -size +0c \
-        \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+        \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \
+        -o -iname '*.gif' -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mkv' \
+        -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.avi' \) \
         | shuf -n 1
 }
 
 ensure_wayland_display
-start_daemon
+mpvpaper_pidfile="$XDG_RUNTIME_DIR/wallpaper-rotate.mpvpaper.pid"
+trap stop_video_wallpaper EXIT
 
 while true; do
     mkdir -p "$wallpaper_dir"
@@ -60,7 +109,16 @@ while true; do
             fi
         fi
 
-        awww img "$choice"
+        case "$(media_type "$choice")" in
+            image)
+                stop_video_wallpaper
+                start_daemon
+                awww img "$choice"
+                ;;
+            video)
+                start_video_wallpaper "$choice"
+                ;;
+        esac
         last="$choice"
     fi
 
