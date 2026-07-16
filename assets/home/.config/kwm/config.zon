@@ -24,13 +24,13 @@
             },
             .select = .{
                 .fg = 0xe6e6e6ff,
-                .bg = 0x242424ff,
+                .bg = 0x2e064fff,
             },
         },
         .status = .stdin,
         .click = .{
             .status = .{
-                .left = .{ .action = .{ .spawn = .{ .argv = .{ "wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle" } } } },
+                .left = .{ .action = .{ .spawn = .{ .argv = .{ "audio-volume", "mute" } } } },
             },
         },
     },
@@ -38,8 +38,8 @@
     .border = .{
         .width = 5,
         .color = .{
-            .focus = 0x2a2a2aff,
-            .unfocus = 0x161616ff,
+            .focus = 0x2e064fff,
+            .unfocus = 0x101010ff,
         },
     },
 
@@ -85,6 +85,15 @@
     .bindings = .{
         .key = .{
             .{
+                .keysym = "r",
+                .modifiers = .{ .mod4 = true, .shift = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .reload_config,
+                    },
+                },
+            },
+            .{
                 .keysym = "Super_L",
                 .modifiers = .{},
                 .event = .{
@@ -118,11 +127,22 @@
                 },
             },
             .{
+                .keysym = "l",
+                .modifiers = .{ .mod4 = true },
+                .event = .{
+                    .click = .{
+                        .pressed = .{
+                            .spawn = .{ .argv = .{ "lock-screen" } },
+                        },
+                    },
+                },
+            },
+            .{
                 .keysym = "XF86AudioRaiseVolume",
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" } },
+                        .spawn = .{ .argv = .{ "audio-volume", "up" } },
                     },
                 },
             },
@@ -132,7 +152,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" } },
+                        .spawn = .{ .argv = .{ "audio-volume", "up" } },
                     },
                 },
             },
@@ -141,7 +161,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" } },
+                        .spawn = .{ .argv = .{ "audio-volume", "down" } },
                     },
                 },
             },
@@ -151,7 +171,7 @@
                 .modifiers = .{},
                 .event = .{
                     .repeat = .{
-                        .spawn = .{ .argv = .{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" } },
+                        .spawn = .{ .argv = .{ "audio-volume", "down" } },
                     },
                 },
             },
@@ -161,7 +181,7 @@
                 .event = .{
                     .click = .{
                         .pressed = .{
-                            .spawn = .{ .argv = .{ "wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle" } },
+                            .spawn = .{ .argv = .{ "audio-volume", "mute" } },
                         },
                     },
                 },

@@ -1,12 +1,41 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env python3
+from __future__ import annotations
 
-output_dir="$HOME/docs/pictures/screenshots"
-mkdir -p "$output_dir"
+import datetime as dt
+import os
+import subprocess
+import tempfile
+from pathlib import Path
 
-selection="$(slurp)"
-file="$output_dir/$(date +'%Y-%m-%d_%H-%M-%S').png"
 
-grim -g "$selection" "$file"
-wl-copy < "$file"
-printf '%s\n' "$file"
+def run_text(command: list[str]) -> str:
+    return subprocess.run(
+        command,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.strip()
+
+
+def main() -> int:
+    selection = run_text(["slurp"])
+    if not selection:
+        return 1
+
+    output_dir = Path(tempfile.gettempdir()) / f"screenshots-{os.getuid()}"
+    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    output_dir.chmod(0o700)
+
+    timestamp = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    path = output_dir / f"{timestamp}.png"
+
+    subprocess.run(["grim", "-g", selection, str(path)], check=True)
+    with path.open("rb") as screenshot:
+        subprocess.run(["wl-copy"], stdin=screenshot, check=True)
+
+    print(path)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

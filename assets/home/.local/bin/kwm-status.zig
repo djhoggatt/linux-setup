@@ -78,6 +78,15 @@ const AudioSource = struct {
         return self.text[0..self.text_len];
     }
 
+    /// `pactl subscribe` also reports short-lived command clients. Ignore
+    /// those so refreshing the bar does not wake itself repeatedly.
+    fn eventIsRelevant(bytes: []const u8) bool {
+        return std.mem.indexOf(u8, bytes, " on sink #") != null or
+            std.mem.indexOf(u8, bytes, " on source #") != null or
+            std.mem.indexOf(u8, bytes, " on card #") != null or
+            std.mem.indexOf(u8, bytes, " on server #") != null;
+    }
+
     /// Spawn `pactl subscribe`, which is used only as an event stream.
     fn spawnMonitor(self: *AudioSource) !void {
         self.fba = std.heap.FixedBufferAllocator.init(&self.child_storage);
@@ -91,25 +100,10 @@ const AudioSource = struct {
 
     /// Recompute the audio text from current sink mute/volume state.
     fn refresh(self: *AudioSource) !bool {
-        const mute = try runCommandCapture(
-            &.{ "/usr/bin/pactl", "get-sink-mute", "@DEFAULT_SINK@" },
-            self.scratch[0..256],
-        );
-
-        if (std.mem.indexOf(u8, mute, "yes") != null) {
-            if (std.mem.eql(u8, self.slice(), "muted")) return false;
-            self.text_len = "muted".len;
-            @memcpy(self.text[0.."muted".len], "muted");
-            return true;
-        }
-
-        const volume = try runCommandCapture(
-            &.{ "/usr/bin/pactl", "get-sink-volume", "@DEFAULT_SINK@" },
+        const next = try runCommandCapture(
+            &.{ "/usr/bin/env", "audio-volume", "status" },
             self.scratch[0..],
         );
-        const percent = parsePercent(volume) orelse 0;
-        var next_buf: [audio_max_len]u8 = undefined;
-        const next = try std.fmt.bufPrint(&next_buf, "vol {d}%", .{percent});
 
         if (std.mem.eql(u8, self.slice(), next)) return false;
         self.text_len = next.len;
@@ -131,6 +125,7 @@ const AudioSource = struct {
             try self.spawnMonitor();
         }
 
+        if (!eventIsRelevant(discard[0..n])) return false;
         return self.refresh() catch false;
     }
 };

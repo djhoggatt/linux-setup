@@ -145,6 +145,11 @@ MPVPAPER_REPO = "https://github.com/GhostNaN/mpvpaper.git"
 MPVPAPER_REF = "1.8"
 BACKGROUND_REPO = "https://github.com/djhoggatt/root-and-rail.git"
 GO_GRIP_MODULE = "github.com/chrishrb/go-grip@latest"
+SOURCE_BUILD_ZIG_VERSION = "0.15.2"
+SOURCE_BUILD_ZIG_URL = (
+    f"https://ziglang.org/download/{SOURCE_BUILD_ZIG_VERSION}/"
+    f"zig-x86_64-linux-{SOURCE_BUILD_ZIG_VERSION}.tar.xz"
+)
 DZ60_VIA_UDEV_RULES = """# DZTECH DZ60RGB VIA/QMK HID interfaces
 KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="445a", ATTRS{idProduct}=="1121", MODE="0660", TAG+="uaccess", TAG+="udev-acl"
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="445a", ATTRS{idProduct}=="1121", TAG+="uaccess"
@@ -781,7 +786,23 @@ def install_machine_files() -> None:
     )
 
 
-def install_user_files(username: str) -> None:
+def build_user_zig_tool(username: str, source: Path, output: Path) -> None:
+    source_build_zig = str(ensure_source_build_zig())
+    run_as_user(
+        username,
+        [
+            source_build_zig,
+            "build-exe",
+            str(source),
+            "-O",
+            "ReleaseSafe",
+            "-femit-bin=" + str(output),
+        ],
+    )
+
+
+def install_user_files(config: dict[str, object]) -> None:
+    username = str(config["username"])
     home = Path("/home") / username
     owner = user_ids(username)
 
@@ -839,31 +860,39 @@ def install_user_files(username: str) -> None:
         ("home/.local/bin/git-tools", home / ".local" / "bin" / "git-tools", 0o755),
         ("home/.local/bin/github-tools", home / ".local" / "bin" / "github-tools", 0o755),
         ("home/.local/bin/jira-tools", home / ".local" / "bin" / "jira-tools", 0o755),
-        ("home/.local/bin/ghostty-launch", home / ".local" / "bin" / "ghostty-launch", 0o755),
+        ("home/.local/bin/audio-volume.zig", home / ".local" / "bin" / "audio-volume.zig", 0o644),
         ("home/.local/bin/kwm-status.zig", home / ".local" / "bin" / "kwm-status.zig", 0o644),
         ("home/.local/bin/lock-screen", home / ".local" / "bin" / "lock-screen", 0o755),
         ("home/.local/bin/monitor-layout", home / ".local" / "bin" / "monitor-layout", 0o755),
         ("home/.local/bin/screenshot-region", home / ".local" / "bin" / "screenshot-region", 0o755),
-        ("home/.local/bin/wallpaper-rotate", home / ".local" / "bin" / "wallpaper-rotate", 0o755),
+        ("home/.local/bin/wallpaper-rotate.zig", home / ".local" / "bin" / "wallpaper-rotate.zig", 0o644),
         (
             "home/.local/share/applications/com.mitchellh.ghostty.desktop",
             home / ".local" / "share" / "applications" / "com.mitchellh.ghostty.desktop",
             0o644,
         ),
     ]
+    if bool(config.get("is_vm")):
+        asset_copy_map.append(
+            ("home/.local/bin/ghostty-launch", home / ".local" / "bin" / "ghostty-launch", 0o755)
+        )
     for source_name, destination, mode in asset_copy_map:
         copy_file(asset_file(source_name), destination, mode, owner=owner)
 
-    run_as_user(
+    build_user_zig_tool(
         username,
-        [
-            "zig",
-            "build-exe",
-            str(home / ".local" / "bin" / "kwm-status.zig"),
-            "-O",
-            "ReleaseSafe",
-            "-femit-bin=" + str(home / ".local" / "bin" / "kwm-status"),
-        ],
+        home / ".local" / "bin" / "kwm-status.zig",
+        home / ".local" / "bin" / "kwm-status",
+    )
+    build_user_zig_tool(
+        username,
+        home / ".local" / "bin" / "audio-volume.zig",
+        home / ".local" / "bin" / "audio-volume",
+    )
+    build_user_zig_tool(
+        username,
+        home / ".local" / "bin" / "wallpaper-rotate.zig",
+        home / ".local" / "bin" / "wallpaper-rotate",
     )
 
 
@@ -903,6 +932,23 @@ def apply_git_patch(repository: Path, patch_relative_path: str) -> None:
     )
 
 
+def ensure_source_build_zig() -> Path:
+    INSTALLER_BUILD_ROOT.mkdir(parents=True, exist_ok=True)
+    zig_dir = INSTALLER_BUILD_ROOT / f"zig-{SOURCE_BUILD_ZIG_VERSION}"
+    zig = zig_dir / "zig"
+    if zig.exists():
+        return zig
+
+    archive = INSTALLER_BUILD_ROOT / f"zig-{SOURCE_BUILD_ZIG_VERSION}.tar.xz"
+    extracted = INSTALLER_BUILD_ROOT / f"zig-x86_64-linux-{SOURCE_BUILD_ZIG_VERSION}"
+    run(["curl", "-fL", SOURCE_BUILD_ZIG_URL, "-o", str(archive)])
+    run(["tar", "-C", str(INSTALLER_BUILD_ROOT), "-xf", str(archive)])
+    if not (extracted / "zig").exists():
+        fail(f"Downloaded Zig {SOURCE_BUILD_ZIG_VERSION}, but {extracted / 'zig'} is missing.")
+    extracted.rename(zig_dir)
+    return zig
+
+
 def install_river_and_kwm() -> None:
     river_dir = INSTALLER_BUILD_ROOT / "river"
     kwm_dir = INSTALLER_BUILD_ROOT / "kwm"
@@ -914,9 +960,11 @@ def install_river_and_kwm() -> None:
     clone_repo(KWM_REPO, kwm_dir, KWM_REF)
     apply_git_patch(river_dir, "patches/river-vmwgfx-dmabuf-workaround.patch")
     apply_git_patch(river_dir, "patches/river-chromium-translucency.patch")
+    apply_git_patch(kwm_dir, "patches/kwm-current-output-bar-highlight.patch")
+    source_build_zig = str(ensure_source_build_zig())
     run(
         [
-            "zig",
+            source_build_zig,
             "build",
             "-Doptimize=ReleaseSafe",
             "-Dcpu=baseline",
@@ -930,7 +978,7 @@ def install_river_and_kwm() -> None:
     )
     run(
         [
-            "zig",
+            source_build_zig,
             "build",
             "-Doptimize=ReleaseSafe",
             "-Dbackground=false",
@@ -1080,9 +1128,9 @@ def run_chroot_setup(config_path: str | None) -> None:
         ensure_user(str(config["username"]), str(config["user_password"]))
         install_machine_files()
         install_codex()
-        install_user_files(str(config["username"]))
-        prime_neovim(str(config["username"]))
         install_river_and_kwm()
+        install_user_files(config)
+        prime_neovim(str(config["username"]))
         install_mpvpaper()
         install_backgrounds(str(config["username"]))
         install_go_grip(str(config["username"]))
