@@ -43,7 +43,7 @@
         },
     },
 
-    .tags = .{ "1", "2", "3", "4", "5", "6", "7", "8", "9" },
+    .tags = .{ "1", "2", "3" },
 
     .window_rules = .{
         .{ .app_id = .{ .str = "", .match_null = true }, .floating = true },
@@ -80,6 +80,28 @@
             .inner_gap = 16,
             .outer_gap = 9,
         },
+    },
+
+    .layout_tag = .{
+        .tile = .{
+            .left = "tile",
+            .right = "tile",
+            .top = "tile",
+            .bottom = "tile",
+        },
+        .grid = .{
+            .horizontal = "grid",
+            .vertical = "grid-v",
+        },
+        .monocle = "mono",
+        .deck = .{
+            .left = "deck",
+            .right = "deck",
+            .top = "deck",
+            .bottom = "deck",
+        },
+        .scroller = "scroll",
+        .float = "float",
     },
 
     .bindings = .{
@@ -132,7 +154,7 @@
                 .event = .{
                     .click = .{
                         .pressed = .{
-                            .spawn = .{ .argv = .{ "lock-screen" } },
+                            .spawn = .{ .argv = .{ "gtklock" } },
                         },
                     },
                 },
@@ -283,21 +305,9 @@
             .{ .keysym = "1", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .set_output_tag = .{ .tag = .{ .tag = 0b1 } } } } } },
             .{ .keysym = "2", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .set_output_tag = .{ .tag = .{ .tag = 0b10 } } } } } },
             .{ .keysym = "3", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .set_output_tag = .{ .tag = .{ .tag = 0b100 } } } } } },
-            .{ .keysym = "4", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .set_output_tag = .{ .tag = .{ .tag = 0b1000 } } } } } },
-            .{ .keysym = "5", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .set_output_tag = .{ .tag = .{ .tag = 0b10000 } } } } } },
-            .{ .keysym = "6", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .set_output_tag = .{ .tag = .{ .tag = 0b100000 } } } } } },
-            .{ .keysym = "7", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .set_output_tag = .{ .tag = .{ .tag = 0b1000000 } } } } } },
-            .{ .keysym = "8", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .set_output_tag = .{ .tag = .{ .tag = 0b10000000 } } } } } },
-            .{ .keysym = "9", .modifiers = .{ .ctrl = true, .mod1 = true }, .event = .{ .click = .{ .pressed = .{ .set_output_tag = .{ .tag = .{ .tag = 0b100000000 } } } } } },
             .{ .keysym = "1", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .set_window_tag = .{ .tag = .{ .tag = 0b1 } } } } } },
             .{ .keysym = "2", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .set_window_tag = .{ .tag = .{ .tag = 0b10 } } } } } },
             .{ .keysym = "3", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .set_window_tag = .{ .tag = .{ .tag = 0b100 } } } } } },
-            .{ .keysym = "4", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .set_window_tag = .{ .tag = .{ .tag = 0b1000 } } } } } },
-            .{ .keysym = "5", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .set_window_tag = .{ .tag = .{ .tag = 0b10000 } } } } } },
-            .{ .keysym = "6", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .set_window_tag = .{ .tag = .{ .tag = 0b100000 } } } } } },
-            .{ .keysym = "7", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .set_window_tag = .{ .tag = .{ .tag = 0b1000000 } } } } } },
-            .{ .keysym = "8", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .set_window_tag = .{ .tag = .{ .tag = 0b10000000 } } } } } },
-            .{ .keysym = "9", .modifiers = .{ .ctrl = true, .mod1 = true, .shift = true }, .event = .{ .click = .{ .pressed = .{ .set_window_tag = .{ .tag = .{ .tag = 0b100000000 } } } } } },
             .{
                 .keysym = "f",
                 .modifiers = .{ .ctrl = true, .mod1 = true },

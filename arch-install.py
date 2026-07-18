@@ -48,7 +48,8 @@ BASE_PACKAGES = [
     "chromium",
     "thunar",
     "xorg-xwayland",
-    "ly",
+    "lightdm",
+    "lightdm-gtk-greeter",
     "rofi-wayland",
     "awww",
     "mpv",
@@ -61,6 +62,7 @@ BASE_PACKAGES = [
     "grim",
     "slurp",
     "wl-clipboard",
+    "wlr-randr",
     "xdg-user-dirs",
     "xdg-utils",
     "xdg-desktop-portal-wlr",
@@ -144,6 +146,8 @@ KWM_REF = "7e30a6f85eb37fb6c3ad33974fd191607ad88069"
 MPVPAPER_REPO = "https://github.com/GhostNaN/mpvpaper.git"
 MPVPAPER_REF = "1.8"
 BACKGROUND_REPO = "https://github.com/djhoggatt/root-and-rail.git"
+LOGIN_BACKGROUND_NAME = "canyon.png"
+LOGIN_BACKGROUND_PATH = Path("/usr/share/backgrounds/linux-setup/login.png")
 GO_GRIP_MODULE = "github.com/chrishrb/go-grip@latest"
 SOURCE_BUILD_ZIG_VERSION = "0.15.2"
 SOURCE_BUILD_ZIG_URL = (
@@ -775,6 +779,16 @@ def install_machine_files() -> None:
     copy_file(asset_file("etc/sudoers.d/10-wheel"), Path("/etc/sudoers.d/10-wheel"), 0o440)
     write_text(Path("/etc/udev/rules.d/51-dz60-via.rules"), DZ60_VIA_UDEV_RULES, 0o644)
     copy_file(
+        asset_file("etc/lightdm/lightdm.conf"),
+        Path("/etc/lightdm/lightdm.conf"),
+        0o644,
+    )
+    copy_file(
+        asset_file("etc/lightdm/lightdm-gtk-greeter.conf"),
+        Path("/etc/lightdm/lightdm-gtk-greeter.conf"),
+        0o644,
+    )
+    copy_file(
         asset_file("usr/local/bin/start-river-session"),
         Path("/usr/local/bin/start-river-session"),
         0o755,
@@ -813,6 +827,7 @@ def install_user_files(config: dict[str, object]) -> None:
         home / ".config" / "chromium" / "External Extensions",
         home / ".config" / "fastfetch",
         home / ".config" / "ghostty",
+        home / ".config" / "gtklock",
         home / ".config" / "kwm",
         home / ".config" / "nvim",
         home / ".config" / "rofi",
@@ -846,6 +861,7 @@ def install_user_files(config: dict[str, object]) -> None:
             0o644,
         ),
         ("home/.config/ghostty/config", home / ".config" / "ghostty" / "config", 0o644),
+        ("home/.config/gtklock/config.ini", home / ".config" / "gtklock" / "config.ini", 0o644),
         (
             "home/.config/chromium/External Extensions/eimadpbcbfnmbkopoojfekhnkhdbieeh.json",
             home / ".config" / "chromium" / "External Extensions" / "eimadpbcbfnmbkopoojfekhnkhdbieeh.json",
@@ -910,8 +926,8 @@ def enable_services(config: dict[str, object]) -> None:
     if bool(config.get("is_vm")):
         run(["systemctl", "enable", "vmtoolsd.service"], check=False)
         run(["systemctl", "enable", "vmware-vmblock-fuse.service"], check=False)
-    run(["systemctl", "disable", "getty@tty2.service"], check=False)
-    run(["systemctl", "enable", "ly@tty2.service"])
+    run(["systemctl", "disable", "ly@tty2.service"], check=False)
+    run(["systemctl", "enable", "lightdm.service"])
 
 
 def clone_repo(repo_url: str, destination: Path, ref: str | None = None) -> None:
@@ -1028,6 +1044,7 @@ def install_backgrounds(username: str) -> None:
     if not images_dir.exists():
         fail("root-and-rail checkout is missing the images directory.")
     copied = 0
+    installed_login_background = False
     for source in images_dir.iterdir():
         if not source.is_file():
             continue
@@ -1037,9 +1054,14 @@ def install_backgrounds(username: str) -> None:
         copy_file(source, destination, 0o644, owner=owner)
         if destination.stat().st_size == 0:
             fail(f"Background image copy produced an empty file: {destination}")
+        if source.name == LOGIN_BACKGROUND_NAME:
+            copy_file(source, LOGIN_BACKGROUND_PATH, 0o644)
+            installed_login_background = True
         copied += 1
     if copied == 0:
         fail("No background images were copied into the user background directory.")
+    if not installed_login_background:
+        fail(f"Login background was not found in root-and-rail checkout: {LOGIN_BACKGROUND_NAME}")
 
 
 def install_go_grip(username: str) -> None:
@@ -1112,8 +1134,8 @@ def run_iso_install() -> None:
     cleanup_stage_dir()
 
     print("\nInstall complete.")
-    print("Reboot and log in through Ly on tty2.")
-    print("If Ly asks for a session, choose 'River + kwm'.")
+    print("Reboot and log in through LightDM.")
+    print("If LightDM asks for a session, choose 'River + kwm'.")
 
 
 def run_chroot_setup(config_path: str | None) -> None:
