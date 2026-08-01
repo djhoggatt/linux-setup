@@ -1,0 +1,106 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 30,
+  "reload_style_on_change": true,
+  "fixed-center": true,
+
+  "modules-left": ["sway/workspaces"],
+  "modules-center": ["sway/window"],
+  "modules-right": ["network", "pulseaudio", "pulseaudio/slider", "clock", "custom/power"],
+
+  "sway/workspaces": {
+    "all-outputs": false,
+    "disable-scroll": true,
+    "format": "{icon}",
+    "format-icons": {
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "mon1_1": "1",
+      "mon1_2": "2",
+      "mon1_3": "3",
+      "mon1_4": "4",
+      "mon1_5": "5",
+      "mon1_6": "6",
+      "mon1_7": "7",
+      "mon1_8": "8",
+      "mon1_9": "9",
+      "mon2_1": "1",
+      "mon2_2": "2",
+      "mon2_3": "3",
+      "mon2_4": "4",
+      "mon2_5": "5",
+      "mon2_6": "6",
+      "mon2_7": "7",
+      "mon2_8": "8",
+      "mon2_9": "9",
+      "mon3_1": "1",
+      "mon3_2": "2",
+      "mon3_3": "3",
+      "mon3_4": "4",
+      "mon3_5": "5",
+      "mon3_6": "6",
+      "mon3_7": "7",
+      "mon3_8": "8",
+      "mon3_9": "9",
+      "mon4_1": "1",
+      "mon4_2": "2",
+      "mon4_3": "3",
+      "mon4_4": "4",
+      "mon4_5": "5",
+      "mon4_6": "6",
+      "mon4_7": "7",
+      "mon4_8": "8",
+      "mon4_9": "9"
+    }
+  },
+
+  "sway/window": {
+    "format": "{title}",
+    "max-length": 120,
+    "separate-outputs": false,
+    "tooltip": false
+  },
+
+  "network": {
+    "format-wifi": "󰖩  {essid}",
+    "format-ethernet": "󰈀  wired",
+    "format-disconnected": "󰖪  offline",
+    "tooltip-format-wifi": "{ifname}: {essid} ({signalStrength}%)\n{ipaddr}/{cidr}",
+    "tooltip-format-ethernet": "{ifname}: wired\n{ipaddr}/{cidr}",
+    "tooltip-format-disconnected": "Disconnected",
+    "on-click": "waybar-network-menu",
+    "on-click-right": "waybar-network-menu"
+  },
+
+  "pulseaudio": {
+    "format": "{icon}  {volume}%",
+    "format-muted": "󰝟  muted",
+    "format-icons": {
+      "default": ["", "", ""]
+    },
+    "max-volume": 100,
+    "scroll-step": 5,
+    "tooltip-format": "{desc}",
+    "on-click": "waybar-audio-menu",
+    "on-click-middle": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+  },
+
+  "pulseaudio/slider": {
+    "min": 0,
+    "max": 100,
+    "orientation": "horizontal"
+  },
+
+  "clock": {
+    "format": "{:%H:%M}",
+    "tooltip-format": "{:%A, %Y-%m-%d}"
+  },
+
+  "custom/power": {
+    "format": "",
+    "on-click": "waybar-power-menu",
+    "tooltip": false
+  }
+}

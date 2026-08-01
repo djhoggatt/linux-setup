@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+import subprocess
+import sys
+
+
+def run(*argv, input_text=None, check=True):
+    return subprocess.run(
+        argv,
+        input=input_text,
+        check=check,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def nmcli_unescape(value):
+    out = []
+    escaped = False
+    for char in value:
+        if escaped:
+            out.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        else:
+            out.append(char)
+    if escaped:
+        out.append("\\")
+    return "".join(out)
+
+
+def split_nmcli_line(line):
+    fields = []
+    field = []
+    escaped = False
+    for char in line:
+        if escaped:
+            field.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == ":":
+            fields.append("".join(field))
+            field = []
+        else:
+            field.append(char)
+    if escaped:
+        field.append("\\")
+    fields.append("".join(field))
+    return fields
+
+
+def wifi_device():
+    result = run(
+        "nmcli",
+        "-t",
+        "-f",
+        "DEVICE,TYPE,STATE",
+        "device",
+        "status",
+        check=False,
+    )
+    fallback = None
+    for line in result.stdout.splitlines():
+        parts = split_nmcli_line(line)
+        if len(parts) < 3 or parts[1] != "wifi":
+            continue
+        if fallback is None:
+            fallback = parts[0]
+        if parts[2].startswith("connected"):
+            return parts[0]
+    return fallback
+
+
+def wifi_networks():
+    result = run(
+        "nmcli",
+        "--escape",
+        "yes",
+        "--terse",
+        "--fields",
+        "IN-USE,SSID,BSSID,SECURITY,SIGNAL",
+        "device",
+        "wifi",
+        "list",
+        "--rescan",
+        "yes",
+    )
+
+    networks = []
+    seen = set()
+    for line in result.stdout.splitlines():
+        parts = split_nmcli_line(line)
+        if len(parts) < 5:
+            continue
+        in_use, ssid, bssid, security, signal = parts[:5]
+        ssid = nmcli_unescape(ssid).strip()
+        bssid = nmcli_unescape(bssid).strip()
+        security = nmcli_unescape(security).strip()
+        signal = nmcli_unescape(signal).strip()
+        if not ssid:
+            continue
+        key = (ssid, bssid)
+        if key in seen:
+            continue
+        seen.add(key)
+        networks.append(
+            {
+                "active": in_use == "*",
+                "ssid": ssid,
+                "bssid": bssid,
+                "security": security,
+                "signal": signal,
+            }
+        )
+    return networks
+
+
+def rofi_select(networks):
+    display_to_network = {}
+    labels = []
+    for network in networks:
+        marker = "●" if network["active"] else "○"
+        security = network["security"] or "open"
+        label = f"{marker}  {network['ssid']}    {security}    {network['signal']}%"
+        if label in display_to_network:
+            label = f"{label}    {network['bssid']}"
+        display_to_network[label] = network
+        labels.append(label)
+
+    result = run(
+        "rofi",
+        "-dmenu",
+        "-i",
+        "-p",
+        "Wi-Fi",
+        input_text="\n".join(labels),
+        check=False,
+    )
+    return display_to_network.get(result.stdout.strip())
+
+
+def rofi_password(ssid):
+    result = run(
+        "rofi",
+        "-dmenu",
+        "-password",
+        "-p",
+        f"Password for {ssid}",
+        input_text="",
+        check=False,
+    )
+    password = result.stdout.rstrip("\n")
+    return password if password else None
+
+
+def rofi_error(message):
+    subprocess.run(["rofi", "-e", message], check=False)
+
+
+def disconnect_current(device):
+    if device:
+        run("nmcli", "device", "disconnect", device, check=False)
+
+
+def connect(network, device, password=None):
+    argv = [
+        "nmcli",
+        "--wait",
+        "30",
+        "device",
+        "wifi",
+        "connect",
+        network["ssid"],
+    ]
+    if network["bssid"]:
+        argv.extend(["bssid", network["bssid"]])
+    if password is not None:
+        argv.extend(["password", password])
+    if device:
+        argv.extend(["ifname", device])
+    return run(*argv, check=False)
+
+
+def needs_password(result):
+    text = f"{result.stdout}\n{result.stderr}".lower()
+    return (
+        "secrets were required" in text
+        or "no password" in text
+        or "password" in text
+        or "802-11-wireless-security" in text
+    )
+
+
+def main():
+    device = wifi_device()
+    if device is None:
+        rofi_error("No Wi-Fi device found.")
+        return 1
+
+    networks = wifi_networks()
+    if not networks:
+        rofi_error("No Wi-Fi networks found.")
+        return 1
+
+    network = rofi_select(networks)
+    if network is None:
+        return 0
+
+    if network["active"]:
+        disconnect_current(device)
+
+    result = connect(network, device)
+    if result.returncode == 0:
+        return 0
+
+    if network["security"] and needs_password(result):
+        password = rofi_password(network["ssid"])
+        if password is None:
+            return 0
+        result = connect(network, device, password)
+        if result.returncode == 0:
+            return 0
+
+    message = (result.stderr or result.stdout or "Could not connect to Wi-Fi.").strip()
+    rofi_error(message)
+    return 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as error:
+        print(f"waybar-network-menu: {error}", file=sys.stderr)
+        rofi_error(str(error))
+        sys.exit(1)

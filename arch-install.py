@@ -48,9 +48,13 @@ BASE_PACKAGES = [
     "chromium",
     "thunar",
     "xorg-xwayland",
+    "sway",
+    "waybar",
     "lightdm",
     "lightdm-gtk-greeter",
     "rofi-wayland",
+    "python-gobject",
+    "gtk3",
     "awww",
     "mpv",
     "gtklock",
@@ -88,12 +92,6 @@ BASE_PACKAGES = [
     "adwaita-cursors",
     "wayland",
     "wayland-protocols",
-    "wlroots0.20",
-    "libxkbcommon",
-    "libinput",
-    "libevdev",
-    "pixman",
-    "fcft",
 ]
 
 CPU_PACKAGES = {
@@ -126,6 +124,7 @@ USER_GROUPS = [
 STAGED_REPO_FILES = [
     "arch-install.py",
     "assets",
+    "tools",
 ]
 
 DEFAULT_CONFIG = {
@@ -139,10 +138,6 @@ DEFAULT_CONFIG = {
 }
 
 INSTALLER_BUILD_ROOT = Path("/tmp/linux-setup-build")
-RIVER_REPO = "https://codeberg.org/river/river.git"
-RIVER_REF = "79e09c3628a88b7b71fc178dccd1b5ab8e7681b0"
-KWM_REPO = "https://github.com/kewuaa/kwm.git"
-KWM_REF = "7e30a6f85eb37fb6c3ad33974fd191607ad88069"
 MPVPAPER_REPO = "https://github.com/GhostNaN/mpvpaper.git"
 MPVPAPER_REF = "1.8"
 BACKGROUND_REPO = "https://github.com/djhoggatt/root-and-rail.git"
@@ -519,7 +514,12 @@ def pacstrap_system(config: dict[str, object]) -> None:
 
 def copy_repo_path(source: Path, destination: Path) -> None:
     if source.is_dir():
-        shutil.copytree(source, destination, dirs_exist_ok=True)
+        shutil.copytree(
+            source,
+            destination,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".zig-cache", "zig-out"),
+        )
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, destination)
@@ -788,16 +788,6 @@ def install_machine_files() -> None:
         Path("/etc/lightdm/lightdm-gtk-greeter.conf"),
         0o644,
     )
-    copy_file(
-        asset_file("usr/local/bin/start-river-session"),
-        Path("/usr/local/bin/start-river-session"),
-        0o755,
-    )
-    copy_file(
-        asset_file("usr/share/wayland-sessions/river-kwm.desktop"),
-        Path("/usr/share/wayland-sessions/river-kwm.desktop"),
-        0o644,
-    )
 
 
 def build_user_zig_tool(username: str, source: Path, output: Path) -> None:
@@ -815,6 +805,33 @@ def build_user_zig_tool(username: str, source: Path, output: Path) -> None:
     )
 
 
+def build_sway_workspace_tool(username: str) -> None:
+    home = Path("/home") / username
+    source_dir = SCRIPT_ROOT / "tools" / "sway-workspace"
+    if not source_dir.exists():
+        source_dir = CHROOT_STAGE_DIR / "tools" / "sway-workspace"
+    if not source_dir.exists():
+        fail(f"sway-workspace source directory is missing: {source_dir}")
+
+    source_build_zig = str(ensure_source_build_zig())
+    run(
+        [
+            source_build_zig,
+            "build",
+            "-Doptimize=ReleaseSafe",
+            "--prefix",
+            str(home / ".local"),
+            "install",
+        ],
+        cwd=str(source_dir),
+    )
+
+
+def configure_default_applications(username: str) -> None:
+    run_as_user(username, ["xdg-mime", "default", "thunar.desktop", "inode/directory"])
+    run_as_user(username, ["gio", "mime", "inode/directory", "thunar.desktop"], check=False)
+
+
 def install_user_files(config: dict[str, object]) -> None:
     username = str(config["username"])
     home = Path("/home") / username
@@ -828,9 +845,12 @@ def install_user_files(config: dict[str, object]) -> None:
         home / ".config" / "fastfetch",
         home / ".config" / "ghostty",
         home / ".config" / "gtklock",
-        home / ".config" / "kwm",
         home / ".config" / "nvim",
         home / ".config" / "rofi",
+        home / ".config" / "sway",
+        home / ".config" / "waybar",
+        home / ".config" / "wireplumber",
+        home / ".config" / "wireplumber" / "wireplumber.conf.d",
         home / ".local",
         home / ".local" / "bin",
         home / ".local" / "share",
@@ -862,13 +882,20 @@ def install_user_files(config: dict[str, object]) -> None:
         ),
         ("home/.config/ghostty/config", home / ".config" / "ghostty" / "config", 0o644),
         ("home/.config/gtklock/config.ini", home / ".config" / "gtklock" / "config.ini", 0o644),
+        ("home/.config/sway/config", home / ".config" / "sway" / "config", 0o644),
+        ("home/.config/waybar/config", home / ".config" / "waybar" / "config", 0o644),
+        ("home/.config/waybar/style.css", home / ".config" / "waybar" / "style.css", 0o644),
+        (
+            "home/.config/wireplumber/wireplumber.conf.d/51-raybit-soft-mixer.conf",
+            home / ".config" / "wireplumber" / "wireplumber.conf.d" / "51-raybit-soft-mixer.conf",
+            0o644,
+        ),
         (
             "home/.config/chromium/External Extensions/eimadpbcbfnmbkopoojfekhnkhdbieeh.json",
             home / ".config" / "chromium" / "External Extensions" / "eimadpbcbfnmbkopoojfekhnkhdbieeh.json",
             0o644,
         ),
         ("home/.config/fastfetch/config.jsonc", home / ".config" / "fastfetch" / "config.jsonc", 0o644),
-        ("home/.config/kwm/config.zon", home / ".config" / "kwm" / "config.zon", 0o644),
         ("home/.config/nvim/init.lua", home / ".config" / "nvim" / "init.lua", 0o644),
         ("home/.config/rofi/config.rasi", home / ".config" / "rofi" / "config.rasi", 0o644),
         ("home/.config/user-dirs.dirs", home / ".config" / "user-dirs.dirs", 0o644),
@@ -876,11 +903,12 @@ def install_user_files(config: dict[str, object]) -> None:
         ("home/.local/bin/git-tools", home / ".local" / "bin" / "git-tools", 0o755),
         ("home/.local/bin/github-tools", home / ".local" / "bin" / "github-tools", 0o755),
         ("home/.local/bin/jira-tools", home / ".local" / "bin" / "jira-tools", 0o755),
-        ("home/.local/bin/audio-volume.zig", home / ".local" / "bin" / "audio-volume.zig", 0o644),
-        ("home/.local/bin/kwm-status.zig", home / ".local" / "bin" / "kwm-status.zig", 0o644),
         ("home/.local/bin/lock-screen", home / ".local" / "bin" / "lock-screen", 0o755),
         ("home/.local/bin/monitor-layout", home / ".local" / "bin" / "monitor-layout", 0o755),
         ("home/.local/bin/screenshot-region", home / ".local" / "bin" / "screenshot-region", 0o755),
+        ("home/.local/bin/waybar-audio-menu", home / ".local" / "bin" / "waybar-audio-menu", 0o755),
+        ("home/.local/bin/waybar-network-menu", home / ".local" / "bin" / "waybar-network-menu", 0o755),
+        ("home/.local/bin/waybar-power-menu", home / ".local" / "bin" / "waybar-power-menu", 0o755),
         ("home/.local/bin/wallpaper-rotate.zig", home / ".local" / "bin" / "wallpaper-rotate.zig", 0o644),
         (
             "home/.local/share/applications/com.mitchellh.ghostty.desktop",
@@ -895,21 +923,14 @@ def install_user_files(config: dict[str, object]) -> None:
     for source_name, destination, mode in asset_copy_map:
         copy_file(asset_file(source_name), destination, mode, owner=owner)
 
-    build_user_zig_tool(
-        username,
-        home / ".local" / "bin" / "kwm-status.zig",
-        home / ".local" / "bin" / "kwm-status",
-    )
-    build_user_zig_tool(
-        username,
-        home / ".local" / "bin" / "audio-volume.zig",
-        home / ".local" / "bin" / "audio-volume",
-    )
+    configure_default_applications(username)
+
     build_user_zig_tool(
         username,
         home / ".local" / "bin" / "wallpaper-rotate.zig",
         home / ".local" / "bin" / "wallpaper-rotate",
     )
+    build_sway_workspace_tool(username)
 
 
 def prime_neovim(username: str) -> None:
@@ -941,13 +962,6 @@ def clone_repo(repo_url: str, destination: Path, ref: str | None = None) -> None
         run(["git", "checkout", "--detach", ref], cwd=str(destination))
 
 
-def apply_git_patch(repository: Path, patch_relative_path: str) -> None:
-    run(
-        ["git", "apply", "--whitespace=nowarn", str(asset_file(patch_relative_path))],
-        cwd=str(repository),
-    )
-
-
 def ensure_source_build_zig() -> Path:
     INSTALLER_BUILD_ROOT.mkdir(parents=True, exist_ok=True)
     zig_dir = INSTALLER_BUILD_ROOT / f"zig-{SOURCE_BUILD_ZIG_VERSION}"
@@ -963,58 +977,6 @@ def ensure_source_build_zig() -> Path:
         fail(f"Downloaded Zig {SOURCE_BUILD_ZIG_VERSION}, but {extracted / 'zig'} is missing.")
     extracted.rename(zig_dir)
     return zig
-
-
-def install_river_and_kwm() -> None:
-    river_dir = INSTALLER_BUILD_ROOT / "river"
-    kwm_dir = INSTALLER_BUILD_ROOT / "kwm"
-    if INSTALLER_BUILD_ROOT.exists():
-        shutil.rmtree(INSTALLER_BUILD_ROOT)
-    INSTALLER_BUILD_ROOT.mkdir(parents=True, exist_ok=True)
-
-    clone_repo(RIVER_REPO, river_dir, RIVER_REF)
-    clone_repo(KWM_REPO, kwm_dir, KWM_REF)
-    apply_git_patch(river_dir, "patches/river-vmwgfx-dmabuf-workaround.patch")
-    apply_git_patch(river_dir, "patches/river-chromium-translucency.patch")
-    apply_git_patch(kwm_dir, "patches/kwm-current-output-bar-highlight.patch")
-    source_build_zig = str(ensure_source_build_zig())
-    run(
-        [
-            source_build_zig,
-            "build",
-            "-Doptimize=ReleaseSafe",
-            "-Dcpu=baseline",
-            "-Dxwayland",
-            "-Dman-pages=false",
-            "--prefix",
-            "/usr/local",
-            "install",
-        ],
-        cwd=str(river_dir),
-    )
-    run(
-        [
-            source_build_zig,
-            "build",
-            "-Doptimize=ReleaseSafe",
-            "-Dbackground=false",
-            "--prefix",
-            "/usr/local",
-            "install",
-        ],
-        cwd=str(kwm_dir),
-    )
-    installed_kwm = Path("/usr/local/bin/kwm")
-    fallback_kwm = kwm_dir / "zig-out" / "bin" / "kwm"
-    if installed_kwm.exists() and installed_kwm.stat().st_size > 0:
-        return
-    if fallback_kwm.exists() and fallback_kwm.stat().st_size > 0:
-        copy_file(fallback_kwm, installed_kwm, 0o755)
-        return
-    fail(
-        "kwm build did not produce a usable binary. "
-        f"Checked {installed_kwm} and {fallback_kwm}."
-    )
 
 
 def install_mpvpaper() -> None:
@@ -1135,7 +1097,7 @@ def run_iso_install() -> None:
 
     print("\nInstall complete.")
     print("Reboot and log in through LightDM.")
-    print("If LightDM asks for a session, choose 'River + kwm'.")
+    print("If LightDM asks for a session, choose 'Sway'.")
 
 
 def run_chroot_setup(config_path: str | None) -> None:
@@ -1150,7 +1112,6 @@ def run_chroot_setup(config_path: str | None) -> None:
         ensure_user(str(config["username"]), str(config["user_password"]))
         install_machine_files()
         install_codex()
-        install_river_and_kwm()
         install_user_files(config)
         prime_neovim(str(config["username"]))
         install_mpvpaper()

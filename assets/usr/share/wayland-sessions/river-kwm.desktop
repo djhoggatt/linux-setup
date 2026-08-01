@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=River + kwm
-Comment=River session launched by start-river-session
-Exec=/usr/local/bin/start-river-session
-Type=Application
-DesktopNames=river

@@ -19,6 +19,13 @@ mkdir -p "$cfg"
 cp "$assets_home/.config/chromium/External Extensions/dbepggeogbaibhgnhhndojpepiihcmeb.json" "$cfg/"
 cp "$assets_home/.config/chromium/External Extensions/eimadpbcbfnmbkopoojfekhnkhdbieeh.json" "$cfg/"
 
+# Install Thunar and make it the default file browser for Chromium "Show in folder".
+sudo apt install -y thunar xdg-utils
+xdg-mime default thunar.desktop inode/directory
+if command -v gio >/dev/null 2>&1; then
+    gio mime inode/directory thunar.desktop
+fi
+
 # Install Ghostty, and ghostty config
 # Motivation: Ghostty is super easy to configure, and has enough native features such that I don't
 # need other applications (e.g. tmux or screen).

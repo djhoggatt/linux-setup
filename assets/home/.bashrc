@@ -151,5 +151,17 @@ complete -F _complete_invoke -o default invoke inv
 
 set -o vi
 alias vim=nvim
-alias logout='pkill -u "$USER" -x river'
+logout() {
+    if [ -n "${SWAYSOCK:-}" ] && command -v swaymsg >/dev/null 2>&1; then
+        swaymsg exit
+        return
+    fi
+
+    if command -v loginctl >/dev/null 2>&1; then
+        loginctl terminate-user "$USER"
+        return
+    fi
+
+    builtin logout
+}
 export PATH="$HOME/.local/bin:$PATH"
