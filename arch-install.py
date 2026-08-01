@@ -921,8 +921,12 @@ def install_user_files(config: dict[str, object]) -> None:
         ("home/.local/bin/lock-screen", home / ".local" / "bin" / "lock-screen", 0o755),
         ("home/.local/bin/monitor-layout", home / ".local" / "bin" / "monitor-layout", 0o755),
         ("home/.local/bin/screenshot-region", home / ".local" / "bin" / "screenshot-region", 0o755),
-        ("home/.local/bin/waybar-audio-menu", home / ".local" / "bin" / "waybar-audio-menu", 0o755),
-        ("home/.local/bin/waybar-network-menu", home / ".local" / "bin" / "waybar-network-menu", 0o755),
+        ("home/.local/bin/waybar-audio-menu.zig", home / ".local" / "bin" / "waybar-audio-menu.zig", 0o644),
+        (
+            "home/.local/bin/waybar-network-menu.zig",
+            home / ".local" / "bin" / "waybar-network-menu.zig",
+            0o644,
+        ),
         ("home/.local/bin/waybar-power-menu", home / ".local" / "bin" / "waybar-power-menu", 0o755),
         ("home/.local/bin/wallpaper-rotate.zig", home / ".local" / "bin" / "wallpaper-rotate.zig", 0o644),
         (
@@ -944,6 +948,16 @@ def install_user_files(config: dict[str, object]) -> None:
         username,
         home / ".local" / "bin" / "wallpaper-rotate.zig",
         home / ".local" / "bin" / "wallpaper-rotate",
+    )
+    build_user_zig_tool(
+        username,
+        home / ".local" / "bin" / "waybar-audio-menu.zig",
+        home / ".local" / "bin" / "waybar-audio-menu",
+    )
+    build_user_zig_tool(
+        username,
+        home / ".local" / "bin" / "waybar-network-menu.zig",
+        home / ".local" / "bin" / "waybar-network-menu",
     )
     build_sway_workspace_tool(username)
 
