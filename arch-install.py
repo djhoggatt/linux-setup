@@ -45,7 +45,7 @@ BASE_PACKAGES = [
     "fzf",
     "ghostty",
     "kitty",
-    "chromium",
+    "qutebrowser",
     "thunar",
     "xorg-xwayland",
     "sway",
@@ -777,6 +777,11 @@ def run_as_user(
 
 def install_machine_files() -> None:
     copy_file(asset_file("etc/sudoers.d/10-wheel"), Path("/etc/sudoers.d/10-wheel"), 0o440)
+    copy_file(
+        asset_file("usr/local/bin/qutebrowser-hint-overlay-workaround"),
+        Path("/usr/local/bin/qutebrowser-hint-overlay-workaround"),
+        0o755,
+    )
     write_text(Path("/etc/udev/rules.d/51-dz60-via.rules"), DZ60_VIA_UDEV_RULES, 0o644)
     copy_file(
         asset_file("etc/lightdm/lightdm.conf"),
@@ -829,7 +834,22 @@ def build_sway_workspace_tool(username: str) -> None:
 
 def configure_default_applications(username: str) -> None:
     run_as_user(username, ["xdg-mime", "default", "thunar.desktop", "inode/directory"])
+    run_as_user(
+        username,
+        [
+            "xdg-mime",
+            "default",
+            "org.qutebrowser.qutebrowser.desktop",
+            "x-scheme-handler/http",
+            "x-scheme-handler/https",
+            "text/html",
+        ],
+    )
     run_as_user(username, ["gio", "mime", "inode/directory", "thunar.desktop"], check=False)
+
+
+def install_qutebrowser_workarounds() -> None:
+    run(["python", "/usr/local/bin/qutebrowser-hint-overlay-workaround"])
 
 
 def install_user_files(config: dict[str, object]) -> None:
@@ -840,12 +860,12 @@ def install_user_files(config: dict[str, object]) -> None:
     directories = [
         home / ".cache",
         home / ".config",
-        home / ".config" / "chromium",
-        home / ".config" / "chromium" / "External Extensions",
         home / ".config" / "fastfetch",
         home / ".config" / "ghostty",
         home / ".config" / "gtklock",
         home / ".config" / "nvim",
+        home / ".config" / "qutebrowser",
+        home / ".config" / "qutebrowser" / "styles",
         home / ".config" / "rofi",
         home / ".config" / "sway",
         home / ".config" / "waybar",
@@ -874,25 +894,20 @@ def install_user_files(config: dict[str, object]) -> None:
     asset_copy_map = [
         ("home/.bashrc", home / ".bashrc", 0o644),
         ("home/.gitconfig", home / ".gitconfig", 0o644),
-        ("home/.config/chromium-flags.conf", home / ".config" / "chromium-flags.conf", 0o644),
-        (
-            "home/.config/chromium/External Extensions/dbepggeogbaibhgnhhndojpepiihcmeb.json",
-            home / ".config" / "chromium" / "External Extensions" / "dbepggeogbaibhgnhhndojpepiihcmeb.json",
-            0o644,
-        ),
         ("home/.config/ghostty/config", home / ".config" / "ghostty" / "config", 0o644),
         ("home/.config/gtklock/config.ini", home / ".config" / "gtklock" / "config.ini", 0o644),
+        ("home/.config/qutebrowser/config.py", home / ".config" / "qutebrowser" / "config.py", 0o644),
+        (
+            "home/.config/qutebrowser/styles/translucent-page.css",
+            home / ".config" / "qutebrowser" / "styles" / "translucent-page.css",
+            0o644,
+        ),
         ("home/.config/sway/config", home / ".config" / "sway" / "config", 0o644),
         ("home/.config/waybar/config", home / ".config" / "waybar" / "config", 0o644),
         ("home/.config/waybar/style.css", home / ".config" / "waybar" / "style.css", 0o644),
         (
             "home/.config/wireplumber/wireplumber.conf.d/51-raybit-soft-mixer.conf",
             home / ".config" / "wireplumber" / "wireplumber.conf.d" / "51-raybit-soft-mixer.conf",
-            0o644,
-        ),
-        (
-            "home/.config/chromium/External Extensions/eimadpbcbfnmbkopoojfekhnkhdbieeh.json",
-            home / ".config" / "chromium" / "External Extensions" / "eimadpbcbfnmbkopoojfekhnkhdbieeh.json",
             0o644,
         ),
         ("home/.config/fastfetch/config.jsonc", home / ".config" / "fastfetch" / "config.jsonc", 0o644),
@@ -1113,6 +1128,7 @@ def run_chroot_setup(config_path: str | None) -> None:
         install_machine_files()
         install_codex()
         install_user_files(config)
+        install_qutebrowser_workarounds()
         prime_neovim(str(config["username"]))
         install_mpvpaper()
         install_backgrounds(str(config["username"]))

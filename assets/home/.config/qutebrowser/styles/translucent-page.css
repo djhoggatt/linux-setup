@@ -1,0 +1,53 @@
+html,
+body {
+    background-color: transparent !important;
+}
+
+body::before {
+    content: "" !important;
+    position: fixed !important;
+    inset: 0 !important;
+    pointer-events: none !important;
+    z-index: -2147483647 !important;
+    background-color: rgba(20, 20, 24, 0.97) !important;
+}
+
+html:has([class*="minimal-homepage_"]) body,
+html:has([class*="minimal-homepage_"]) #__next,
+html:has([class*="minimal-homepage_"]) [class*="minimal-homepage_"] {
+    background-color: transparent !important;
+    background-image: none !important;
+}
+
+html:has(.mw-page-container) body,
+html:has(.mw-page-container) .mw-body,
+html:has(.mw-page-container) .vector-page-titlebar,
+html:has(.mw-page-container) .vector-column-start,
+html:has(.mw-page-container) .vector-column-end {
+    background-color: transparent !important;
+    background-image: none !important;
+}
+
+html:has(.mw-page-container) .mw-page-container {
+    background-color: rgba(30, 32, 38, 0.38) !important;
+    background-image: none !important;
+}
+
+html:has(ytd-app),
+html:has(ytd-app) body,
+html:has(ytd-app) ytd-app,
+html:has(ytd-app) #content,
+html:has(ytd-app) #page-manager,
+html:has(ytd-app) ytd-page-manager {
+    --yt-spec-base-background: transparent !important;
+    --yt-spec-general-background-a: transparent !important;
+    --yt-spec-general-background-b: transparent !important;
+    --yt-spec-general-background-c: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+}
+
+html:has(ytd-app) ytd-browse {
+    background-color: rgba(22, 24, 30, 0.34) !important;
+    background-image: none !important;
+}

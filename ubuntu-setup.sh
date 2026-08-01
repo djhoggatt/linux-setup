@@ -9,17 +9,23 @@ assets_home="$script_dir/assets/home"
 # like scripting in bash, it is very common, and I do most of my scripting in python anyways.
 cp "$assets_home/.bashrc" "$HOME/.bashrc"
 
-# Install Brave Browser
-# Motivation: I want a vim-like browser. Qute-browser is ok, but does hit some edge cases where
-# keyboard navigation is not possible. Chromium based browsers support the vimium extension, which
-# adds most of the functionality that qute-browser has, while also being compatible with most websites.
-sudo snap install brave
-cfg="$HOME/snap/brave/current/.config/BraveSoftware/Brave-Browser/External Extensions"
-mkdir -p "$cfg"
-cp "$assets_home/.config/chromium/External Extensions/dbepggeogbaibhgnhhndojpepiihcmeb.json" "$cfg/"
-cp "$assets_home/.config/chromium/External Extensions/eimadpbcbfnmbkopoojfekhnkhdbieeh.json" "$cfg/"
+# Install qutebrowser.
+# Motivation: qutebrowser gives me a keyboard-first browser with native vim-style navigation,
+# and this setup keeps the browser integrated with the translucent Wayland desktop.
+sudo apt install -y qutebrowser
+if apt-cache show python3-pyqt6.qtwebengine >/dev/null 2>&1; then
+    sudo apt install -y python3-pyqt6.qtwebengine
+elif apt-cache show python3-pyqt5.qtwebengine >/dev/null 2>&1; then
+    sudo apt install -y python3-pyqt5.qtwebengine
+fi
+mkdir -p "$HOME/.config/qutebrowser/styles"
+cp "$assets_home/.config/qutebrowser/config.py" "$HOME/.config/qutebrowser/config.py"
+cp "$assets_home/.config/qutebrowser/styles/translucent-page.css" "$HOME/.config/qutebrowser/styles/translucent-page.css"
+sudo install -m 755 "$script_dir/assets/usr/local/bin/qutebrowser-hint-overlay-workaround" /usr/local/bin/qutebrowser-hint-overlay-workaround
+sudo qutebrowser-hint-overlay-workaround
+xdg-mime default org.qutebrowser.qutebrowser.desktop x-scheme-handler/http x-scheme-handler/https text/html
 
-# Install Thunar and make it the default file browser for Chromium "Show in folder".
+# Install Thunar and make it the default file browser.
 sudo apt install -y thunar xdg-utils
 xdg-mime default thunar.desktop inode/directory
 if command -v gio >/dev/null 2>&1; then
