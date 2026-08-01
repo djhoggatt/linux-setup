@@ -25,6 +25,7 @@ const Rect = struct {
 const Output = struct {
     name: [max_name_len]u8,
     name_len: usize,
+    base_workspace_number: usize,
     rect: Rect,
 
     fn nameSlice(self: *const Output) []const u8 {
@@ -73,17 +74,13 @@ pub fn main(init: std.process.Init) !void {
     const focused = try focusedWorkspace(allocator, workspaces_json);
     const monitor_index = outputIndex(outputs[0..output_count], focused.outputSlice()) orelse return error.FocusedOutputNotFound;
     const monitor_number = monitor_index + 1;
+    const base_workspace_number = outputs[monitor_index].base_workspace_number;
 
     const current_slot = parseManagedWorkspaceSlot(focused.nameSlice(), monitor_number);
-    const next_slot = switch (direction) {
-        .up => if (current_slot) |slot| slot + 1 else 1,
-        .down => if (current_slot) |slot| @max(slot, 2) - 1 else 1,
-    };
+    var command_buf: [max_workspace_name_len + 32]u8 = undefined;
+    const command = try nextWorkspaceCommand(&command_buf, direction, current_slot, monitor_number, base_workspace_number);
 
-    var workspace_buf: [max_workspace_name_len]u8 = undefined;
-    const workspace = try std.fmt.bufPrint(&workspace_buf, "mon{d}_{d}", .{ monitor_number, next_slot });
-
-    try switchWorkspace(allocator, io, workspace);
+    try switchWorkspace(allocator, io, command);
 }
 
 fn usage() error{InvalidArgs} {
@@ -108,10 +105,7 @@ fn swaymsgJson(allocator: Allocator, io: std.Io, message_type: []const u8) ![]u8
     return result.stdout;
 }
 
-fn switchWorkspace(allocator: Allocator, io: std.Io, workspace: []const u8) !void {
-    var command_buf: [max_workspace_name_len + 32]u8 = undefined;
-    const command = try std.fmt.bufPrint(&command_buf, "workspace {s}", .{workspace});
-
+fn switchWorkspace(allocator: Allocator, io: std.Io, command: []const u8) !void {
     const result = try std.process.run(allocator, io, .{
         .argv = &.{ "swaymsg", command },
         .stdout_limit = .limited(32 * 1024),
@@ -124,6 +118,25 @@ fn switchWorkspace(allocator: Allocator, io: std.Io, workspace: []const u8) !voi
         std.debug.print("{s}", .{result.stderr});
         return error.SwaymsgFailed;
     }
+}
+
+fn nextWorkspaceCommand(
+    buf: []u8,
+    direction: Direction,
+    current_slot: ?usize,
+    monitor_number: usize,
+    base_workspace_number: usize,
+) ![]const u8 {
+    const next_slot = switch (direction) {
+        .up => if (current_slot) |slot| slot + 1 else 1,
+        .down => if (current_slot) |slot| if (slot > 1) slot - 1 else null else null,
+    };
+
+    if (next_slot) |slot| {
+        return std.fmt.bufPrint(buf, "workspace mon{d}_{d}", .{ monitor_number, slot });
+    }
+
+    return std.fmt.bufPrint(buf, "workspace number {d}", .{base_workspace_number});
 }
 
 fn activeOutputs(allocator: Allocator, data: []const u8, outputs: *[max_outputs]Output) !usize {
@@ -143,6 +156,7 @@ fn activeOutputs(allocator: Allocator, data: []const u8, outputs: *[max_outputs]
         outputs[count] = .{
             .name = undefined,
             .name_len = try copyBounded(name, &outputs[count].name),
+            .base_workspace_number = count + 1,
             .rect = .{
                 .x = rect.get("x").?.integer,
                 .y = rect.get("y").?.integer,
@@ -220,10 +234,35 @@ test "managed workspace slot parsing" {
     try std.testing.expectEqual(@as(?usize, null), parseManagedWorkspaceSlot("2", 1));
 }
 
+test "workspace command navigation" {
+    var buf: [max_workspace_name_len + 32]u8 = undefined;
+
+    try std.testing.expectEqualStrings(
+        "workspace mon1_1",
+        try nextWorkspaceCommand(&buf, .up, null, 1, 2),
+    );
+    try std.testing.expectEqualStrings(
+        "workspace number 2",
+        try nextWorkspaceCommand(&buf, .down, null, 1, 2),
+    );
+    try std.testing.expectEqualStrings(
+        "workspace number 2",
+        try nextWorkspaceCommand(&buf, .down, 1, 1, 2),
+    );
+    try std.testing.expectEqualStrings(
+        "workspace mon1_1",
+        try nextWorkspaceCommand(&buf, .down, 2, 1, 2),
+    );
+    try std.testing.expectEqualStrings(
+        "workspace number 1",
+        try nextWorkspaceCommand(&buf, .down, 1, 2, 1),
+    );
+}
+
 test "output sorting" {
     var outputs = [_]Output{
-        .{ .name = undefined, .name_len = 0, .rect = .{ .x = 1920, .y = 0 } },
-        .{ .name = undefined, .name_len = 0, .rect = .{ .x = 0, .y = 0 } },
+        .{ .name = undefined, .name_len = 0, .base_workspace_number = 1, .rect = .{ .x = 1920, .y = 0 } },
+        .{ .name = undefined, .name_len = 0, .base_workspace_number = 2, .rect = .{ .x = 0, .y = 0 } },
     };
     outputs[0].name_len = try copyBounded("DP-1", &outputs[0].name);
     outputs[1].name_len = try copyBounded("HDMI-A-1", &outputs[1].name);
@@ -232,4 +271,6 @@ test "output sorting" {
 
     try std.testing.expectEqualStrings("HDMI-A-1", outputs[0].nameSlice());
     try std.testing.expectEqualStrings("DP-1", outputs[1].nameSlice());
+    try std.testing.expectEqual(@as(usize, 2), outputs[0].base_workspace_number);
+    try std.testing.expectEqual(@as(usize, 1), outputs[1].base_workspace_number);
 }
