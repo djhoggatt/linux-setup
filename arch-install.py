@@ -928,7 +928,7 @@ def install_user_files(config: dict[str, object]) -> None:
             home / ".local" / "bin" / "waybar-network-menu.zig",
             0o644,
         ),
-        ("home/.local/bin/waybar-power-menu", home / ".local" / "bin" / "waybar-power-menu", 0o755),
+        ("home/.local/bin/waybar-power-menu.zig", home / ".local" / "bin" / "waybar-power-menu.zig", 0o644),
         ("home/.local/bin/wallpaper-rotate.zig", home / ".local" / "bin" / "wallpaper-rotate.zig", 0o644),
         (
             "home/.local/share/applications/com.mitchellh.ghostty.desktop",
@@ -964,6 +964,11 @@ def install_user_files(config: dict[str, object]) -> None:
         username,
         home / ".local" / "bin" / "waybar-network-menu.zig",
         home / ".local" / "bin" / "waybar-network-menu",
+    )
+    build_user_zig_tool(
+        username,
+        home / ".local" / "bin" / "waybar-power-menu.zig",
+        home / ".local" / "bin" / "waybar-power-menu",
     )
     build_sway_workspace_tool(username)
 
