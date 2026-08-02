@@ -9,7 +9,12 @@ body::before {
     inset: 0 !important;
     pointer-events: none !important;
     z-index: -2147483647 !important;
-    background-color: rgba(20, 20, 24, 0.97) !important;
+    background-color: rgba(20, 20, 24, 0.90) !important;
+}
+
+html:has(ytd-app) body::before {
+    content: none !important;
+    background: transparent !important;
 }
 
 html:has([class*="minimal-homepage_"]) body,
@@ -29,7 +34,7 @@ html:has(.mw-page-container) .vector-column-end {
 }
 
 html:has(.mw-page-container) .mw-page-container {
-    background-color: rgba(30, 32, 38, 0.38) !important;
+    background-color: rgba(30, 32, 38, 0.88) !important;
     background-image: none !important;
 }
 
@@ -48,6 +53,17 @@ html:has(ytd-app) ytd-page-manager {
 }
 
 html:has(ytd-app) ytd-browse {
-    background-color: rgba(22, 24, 30, 0.34) !important;
+    background-color: rgba(22, 24, 30, 0.84) !important;
+    background-image: none !important;
+}
+
+html:has(ytd-app) ytd-watch-flexy {
+    background-color: rgba(22, 24, 30, 0.84) !important;
+    background-image: none !important;
+}
+
+html:has(ytd-app) ytd-guide-renderer,
+html:has(ytd-app) ytd-guide-renderer #guide-content {
+    background-color: rgba(22, 24, 30, 0.84) !important;
     background-image: none !important;
 }

@@ -5,6 +5,7 @@ config.load_autoconfig(False)
 c.window.transparent = True
 c.colors.webpage.bg = "transparent"
 c.colors.webpage.darkmode.enabled = True
+c.colors.webpage.darkmode.algorithm = "lightness-cielab"
 c.content.user_stylesheets = [str(Path.home() / ".config/qutebrowser/styles/translucent-page.css")]
 
 c.colors.hints.fg = "#000000"

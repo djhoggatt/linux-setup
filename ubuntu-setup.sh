@@ -19,8 +19,15 @@ elif apt-cache show python3-pyqt5.qtwebengine >/dev/null 2>&1; then
     sudo apt install -y python3-pyqt5.qtwebengine
 fi
 mkdir -p "$HOME/.config/qutebrowser/styles"
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications"
 cp "$assets_home/.config/qutebrowser/config.py" "$HOME/.config/qutebrowser/config.py"
 cp "$assets_home/.config/qutebrowser/styles/translucent-page.css" "$HOME/.config/qutebrowser/styles/translucent-page.css"
+cp "$assets_home/.local/bin/qutebrowser" "$HOME/.local/bin/qutebrowser"
+chmod 755 "$HOME/.local/bin/qutebrowser"
+cp "$assets_home/.local/share/applications/org.qutebrowser.qutebrowser.desktop" "$HOME/.local/share/applications/org.qutebrowser.qutebrowser.desktop"
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$HOME/.local/share/applications" || true
+fi
 sudo install -m 755 "$script_dir/assets/usr/local/bin/qutebrowser-hint-overlay-workaround" /usr/local/bin/qutebrowser-hint-overlay-workaround
 sudo qutebrowser-hint-overlay-workaround
 xdg-mime default org.qutebrowser.qutebrowser.desktop x-scheme-handler/http x-scheme-handler/https text/html

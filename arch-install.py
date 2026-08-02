@@ -920,6 +920,7 @@ def install_user_files(config: dict[str, object]) -> None:
         ("home/.local/bin/jira-tools", home / ".local" / "bin" / "jira-tools", 0o755),
         ("home/.local/bin/lock-screen", home / ".local" / "bin" / "lock-screen", 0o755),
         ("home/.local/bin/monitor-layout", home / ".local" / "bin" / "monitor-layout", 0o755),
+        ("home/.local/bin/qutebrowser", home / ".local" / "bin" / "qutebrowser", 0o755),
         ("home/.local/bin/screenshot-region", home / ".local" / "bin" / "screenshot-region", 0o755),
         ("home/.local/bin/waybar-audio-menu.zig", home / ".local" / "bin" / "waybar-audio-menu.zig", 0o644),
         (
@@ -932,6 +933,11 @@ def install_user_files(config: dict[str, object]) -> None:
         (
             "home/.local/share/applications/com.mitchellh.ghostty.desktop",
             home / ".local" / "share" / "applications" / "com.mitchellh.ghostty.desktop",
+            0o644,
+        ),
+        (
+            "home/.local/share/applications/org.qutebrowser.qutebrowser.desktop",
+            home / ".local" / "share" / "applications" / "org.qutebrowser.qutebrowser.desktop",
             0o644,
         ),
     ]

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+exec /usr/bin/qutebrowser \
+    -s window.transparent true \
+    -s colors.webpage.bg transparent \
+    "$@"
