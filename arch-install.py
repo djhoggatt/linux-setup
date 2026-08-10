@@ -897,6 +897,7 @@ def install_user_files(config: dict[str, object]) -> None:
         ("home/.config/ghostty/config", home / ".config" / "ghostty" / "config", 0o644),
         ("home/.config/gtklock/config.ini", home / ".config" / "gtklock" / "config.ini", 0o644),
         ("home/.config/qutebrowser/config.py", home / ".config" / "qutebrowser" / "config.py", 0o644),
+        ("home/.config/qutebrowser/autoconfig.yml", home / ".config" / "qutebrowser" / "autoconfig.yml", 0o644),
         (
             "home/.config/qutebrowser/styles/translucent-page.css",
             home / ".config" / "qutebrowser" / "styles" / "translucent-page.css",

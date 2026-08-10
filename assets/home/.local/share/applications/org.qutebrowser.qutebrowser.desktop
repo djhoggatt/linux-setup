@@ -6,7 +6,7 @@ Comment=A keyboard-driven, vim-like browser based on Python and Qt
 Icon=qutebrowser
 Type=Application
 Categories=Network;WebBrowser;
-Exec=qutebrowser --untrusted-args %u
+Exec=/home/denver/.local/bin/qutebrowser --untrusted-args %u
 Terminal=false
 StartupNotify=true
 MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rdf+xml;image/gif;image/webp;image/jpeg;image/png;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/qute;
@@ -15,8 +15,8 @@ Actions=new-window;preferences;
 
 [Desktop Action new-window]
 Name=New Window
-Exec=qutebrowser
+Exec=/home/denver/.local/bin/qutebrowser
 
 [Desktop Action preferences]
 Name=Preferences
-Exec=qutebrowser "qute://settings"
+Exec=/home/denver/.local/bin/qutebrowser "qute://settings"

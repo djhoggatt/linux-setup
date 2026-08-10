@@ -21,6 +21,7 @@ fi
 mkdir -p "$HOME/.config/qutebrowser/styles"
 mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications"
 cp "$assets_home/.config/qutebrowser/config.py" "$HOME/.config/qutebrowser/config.py"
+cp "$assets_home/.config/qutebrowser/autoconfig.yml" "$HOME/.config/qutebrowser/autoconfig.yml"
 cp "$assets_home/.config/qutebrowser/styles/translucent-page.css" "$HOME/.config/qutebrowser/styles/translucent-page.css"
 cp "$assets_home/.local/bin/qutebrowser" "$HOME/.local/bin/qutebrowser"
 chmod 755 "$HOME/.local/bin/qutebrowser"
