@@ -48,21 +48,20 @@ const FocusedWorkspace = struct {
     }
 };
 
-pub fn main(init: std.process.Init) !void {
-    const allocator = init.gpa;
-    const io = init.io;
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
 
-    var args = std.process.Args.Iterator.init(init.minimal.args);
+    var args = std.process.args();
     _ = args.skip();
     const direction_arg = args.next() orelse return usage();
     if (args.next() != null) return usage();
 
     const direction = Direction.parse(direction_arg) orelse return usage();
 
-    const outputs_json = try swaymsgJson(allocator, io, "get_outputs");
+    const outputs_json = try swaymsgJson(allocator, "get_outputs");
     defer allocator.free(outputs_json);
 
-    const workspaces_json = try swaymsgJson(allocator, io, "get_workspaces");
+    const workspaces_json = try swaymsgJson(allocator, "get_workspaces");
     defer allocator.free(workspaces_json);
 
     var outputs = [_]Output{undefined} ** max_outputs;
@@ -80,7 +79,7 @@ pub fn main(init: std.process.Init) !void {
     var command_buf: [max_workspace_name_len + 32]u8 = undefined;
     const command = try nextWorkspaceCommand(&command_buf, direction, current_slot, monitor_number, base_workspace_number);
 
-    try switchWorkspace(allocator, io, command);
+    try switchWorkspace(allocator, command);
 }
 
 fn usage() error{InvalidArgs} {
@@ -88,15 +87,15 @@ fn usage() error{InvalidArgs} {
     return error.InvalidArgs;
 }
 
-fn swaymsgJson(allocator: Allocator, io: std.Io, message_type: []const u8) ![]u8 {
-    const result = try std.process.run(allocator, io, .{
+fn swaymsgJson(allocator: Allocator, message_type: []const u8) ![]u8 {
+    const result = try std.process.Child.run(.{
+        .allocator = allocator,
         .argv = &.{ "swaymsg", "-t", message_type },
-        .stdout_limit = .limited(256 * 1024),
-        .stderr_limit = .limited(32 * 1024),
+        .max_output_bytes = 256 * 1024,
     });
     defer allocator.free(result.stderr);
 
-    if (result.term != .exited or result.term.exited != 0) {
+    if (!termSucceeded(result.term)) {
         std.debug.print("{s}", .{result.stderr});
         allocator.free(result.stdout);
         return error.SwaymsgFailed;
@@ -105,19 +104,26 @@ fn swaymsgJson(allocator: Allocator, io: std.Io, message_type: []const u8) ![]u8
     return result.stdout;
 }
 
-fn switchWorkspace(allocator: Allocator, io: std.Io, command: []const u8) !void {
-    const result = try std.process.run(allocator, io, .{
+fn switchWorkspace(allocator: Allocator, command: []const u8) !void {
+    const result = try std.process.Child.run(.{
+        .allocator = allocator,
         .argv = &.{ "swaymsg", command },
-        .stdout_limit = .limited(32 * 1024),
-        .stderr_limit = .limited(32 * 1024),
+        .max_output_bytes = 32 * 1024,
     });
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
 
-    if (result.term != .exited or result.term.exited != 0) {
+    if (!termSucceeded(result.term)) {
         std.debug.print("{s}", .{result.stderr});
         return error.SwaymsgFailed;
     }
+}
+
+fn termSucceeded(term: std.process.Child.Term) bool {
+    return switch (term) {
+        .Exited => |code| code == 0,
+        else => false,
+    };
 }
 
 fn nextWorkspaceCommand(

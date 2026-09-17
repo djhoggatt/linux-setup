@@ -70,8 +70,8 @@
     "tooltip-format-wifi": "{ifname}: {essid} ({signalStrength}%)\n{ipaddr}/{cidr}",
     "tooltip-format-ethernet": "{ifname}: wired\n{ipaddr}/{cidr}",
     "tooltip-format-disconnected": "Disconnected",
-    "on-click": "waybar-network-menu",
-    "on-click-right": "waybar-network-menu"
+    "on-click": "$HOME/.local/bin/waybar-network-menu",
+    "on-click-right": "$HOME/.local/bin/waybar-network-menu"
   },
 
   "pulseaudio": {
@@ -83,7 +83,7 @@
     "max-volume": 100,
     "scroll-step": 5,
     "tooltip-format": "{desc}",
-    "on-click": "waybar-audio-menu",
+    "on-click": "$HOME/.local/bin/waybar-audio-menu",
     "on-click-middle": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
   },
 
@@ -100,7 +100,7 @@
 
   "custom/power": {
     "format": "",
-    "on-click": "waybar-power-menu",
+    "on-click": "$HOME/.local/bin/waybar-power-menu",
     "tooltip": false
   }
 }

@@ -445,11 +445,13 @@ def filelog(args):
 
 def cleanup(_args):
     """
-    Delete all local branches except the one currently checked out.
+    Delete all local branches except the one currently checked out, and prune remote-tracking
+    branches whose remote branch is gone.
 
     This force-deletes (git branch -D) regardless of merge status, so unmerged work is removed too.
-    Remote-tracking branches are left untouched.
     """
+
+    subprocess.run(["git", "fetch", "--prune"], check=False)
 
     current = _run_git_stdout(["rev-parse", "--abbrev-ref", "HEAD"]).strip()
     branches = [
@@ -505,7 +507,7 @@ def main():
 
     cleanup_parser = subparsers.add_parser(
         "cleanup",
-        help="Force-delete all local branches except the one checked out.",
+        help="Force-delete all local branches except the one checked out, and prune remote-tracking branches.",
     )
     cleanup_parser.set_defaults(func=cleanup)
 
