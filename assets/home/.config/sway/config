@@ -45,6 +45,11 @@ set $ws3 3
 bindsym $mod+Return exec $menu
 bindsym $mod+t exec $term
 
+# Waybar menus
+bindsym $mod+w exec waybar-network-menu
+bindsym $mod+a exec waybar-audio-menu
+bindsym $mod+p exec waybar-power-menu
+
 # Basic window/session controls
 bindsym $mod+l exec /usr/bin/gtklock
 bindsym $mod+Shift+l exit

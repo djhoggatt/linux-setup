@@ -29,8 +29,6 @@ cp "$assets_home/.local/share/applications/org.qutebrowser.qutebrowser.desktop" 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$HOME/.local/share/applications" || true
 fi
-sudo install -m 755 "$script_dir/assets/usr/local/bin/qutebrowser-hint-overlay-workaround" /usr/local/bin/qutebrowser-hint-overlay-workaround
-sudo qutebrowser-hint-overlay-workaround
 xdg-mime default org.qutebrowser.qutebrowser.desktop x-scheme-handler/http x-scheme-handler/https text/html
 
 # Install Thunar and make it the default file browser.

@@ -1,69 +1,41 @@
-html,
+/* One translucent backing surface; nested page shells must not accumulate alpha. */
+html {
+    background-color: rgba(20, 20, 24, 0.88) !important;
+}
 body {
     background-color: transparent !important;
 }
-
-body::before {
-    content: "" !important;
-    position: fixed !important;
-    inset: 0 !important;
-    pointer-events: none !important;
-    z-index: -2147483647 !important;
-    background-color: rgba(20, 20, 24, 0.90) !important;
-}
-
-html:has(ytd-app) body::before {
-    content: none !important;
-    background: transparent !important;
-}
-
-html:has([class*="minimal-homepage_"]) body,
-html:has([class*="minimal-homepage_"]) #__next,
-html:has([class*="minimal-homepage_"]) [class*="minimal-homepage_"] {
+[data-qute-translucent-surface] {
     background-color: transparent !important;
-    background-image: none !important;
 }
 
-html:has(.mw-page-container) body,
-html:has(.mw-page-container) .mw-body,
-html:has(.mw-page-container) .vector-page-titlebar,
-html:has(.mw-page-container) .vector-column-start,
-html:has(.mw-page-container) .vector-column-end {
+/* YouTube paints its page in custom elements, outside the generic DOM scan.
+ * Scope these rules to page surfaces so player controls and popup menus retain
+ * their own backgrounds. The html element supplies the translucent backing.
+ */
+html:has(ytd-app) :is(
+    ytd-app,
+    ytd-app > #content,
+    ytd-page-manager,
+    ytd-browse,
+    ytd-watch-flexy,
+    ytd-watch-grid,
+    ytd-search,
+    ytd-two-column-browse-results-renderer,
+    ytd-rich-grid-renderer,
+    ytd-masthead,
+    ytd-masthead #background,
+    ytd-guide-renderer,
+    ytd-guide-renderer #guide-content,
+    ytd-mini-guide-renderer,
+    ytd-mini-guide-entry-renderer,
+    ytd-feed-filter-chip-bar-renderer,
+    ytd-feed-filter-chip-bar-renderer #chips-wrapper
+) {
     background-color: transparent !important;
-    background-image: none !important;
 }
 
-html:has(.mw-page-container) .mw-page-container {
-    background-color: rgba(30, 32, 38, 0.88) !important;
-    background-image: none !important;
-}
-
-html:has(ytd-app),
-html:has(ytd-app) body,
-html:has(ytd-app) ytd-app,
-html:has(ytd-app) #content,
-html:has(ytd-app) #page-manager,
-html:has(ytd-app) ytd-page-manager {
-    --yt-spec-base-background: transparent !important;
-    --yt-spec-general-background-a: transparent !important;
-    --yt-spec-general-background-b: transparent !important;
-    --yt-spec-general-background-c: transparent !important;
-    background-color: transparent !important;
-    background-image: none !important;
-}
-
-html:has(ytd-app) ytd-browse {
-    background-color: rgba(22, 24, 30, 0.84) !important;
-    background-image: none !important;
-}
-
-html:has(ytd-app) ytd-watch-flexy {
-    background-color: rgba(22, 24, 30, 0.84) !important;
-    background-image: none !important;
-}
-
-html:has(ytd-app) ytd-guide-renderer,
-html:has(ytd-app) ytd-guide-renderer #guide-content {
-    background-color: rgba(22, 24, 30, 0.84) !important;
-    background-image: none !important;
+/* The ambient video glow is another opaque layer behind watch pages. */
+html:has(ytd-app) #cinematics {
+    display: none !important;
 }

@@ -15,6 +15,8 @@ from pathlib import Path
 
 config.load_autoconfig(False)
 
+config.source("transparency.py")
+
 c.window.transparent = True
 c.colors.webpage.bg = "transparent"
 c.content.user_stylesheets = [str(Path.home() / ".config/qutebrowser/styles/translucent-page.css")]

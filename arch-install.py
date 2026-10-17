@@ -777,11 +777,6 @@ def run_as_user(
 
 def install_machine_files() -> None:
     copy_file(asset_file("etc/sudoers.d/10-wheel"), Path("/etc/sudoers.d/10-wheel"), 0o440)
-    copy_file(
-        asset_file("usr/local/bin/qutebrowser-hint-overlay-workaround"),
-        Path("/usr/local/bin/qutebrowser-hint-overlay-workaround"),
-        0o755,
-    )
     write_text(Path("/etc/udev/rules.d/51-dz60-via.rules"), DZ60_VIA_UDEV_RULES, 0o644)
     copy_file(
         asset_file("etc/lightdm/lightdm.conf"),
@@ -848,10 +843,6 @@ def configure_default_applications(username: str) -> None:
     run_as_user(username, ["gio", "mime", "inode/directory", "thunar.desktop"], check=False)
 
 
-def install_qutebrowser_workarounds() -> None:
-    run(["python", "/usr/local/bin/qutebrowser-hint-overlay-workaround"])
-
-
 def install_user_files(config: dict[str, object]) -> None:
     username = str(config["username"])
     home = Path("/home") / username
@@ -866,6 +857,7 @@ def install_user_files(config: dict[str, object]) -> None:
         home / ".config" / "nvim",
         home / ".config" / "qutebrowser",
         home / ".config" / "qutebrowser" / "styles",
+        home / ".config" / "qutebrowser" / "greasemonkey",
         home / ".config" / "rofi",
         home / ".config" / "sway",
         home / ".config" / "waybar",
@@ -897,6 +889,8 @@ def install_user_files(config: dict[str, object]) -> None:
         ("home/.config/ghostty/config", home / ".config" / "ghostty" / "config", 0o644),
         ("home/.config/gtklock/config.ini", home / ".config" / "gtklock" / "config.ini", 0o644),
         ("home/.config/qutebrowser/config.py", home / ".config" / "qutebrowser" / "config.py", 0o644),
+        ("home/.config/qutebrowser/transparency.py", home / ".config" / "qutebrowser" / "transparency.py", 0o644),
+        ("home/.config/qutebrowser/greasemonkey/translucent-page.user.js", home / ".config" / "qutebrowser" / "greasemonkey/translucent-page.user.js", 0o644),
         ("home/.config/qutebrowser/autoconfig.yml", home / ".config" / "qutebrowser" / "autoconfig.yml", 0o644),
         (
             "home/.config/qutebrowser/styles/translucent-page.css",
@@ -1154,7 +1148,6 @@ def run_chroot_setup(config_path: str | None) -> None:
         install_machine_files()
         install_codex()
         install_user_files(config)
-        install_qutebrowser_workarounds()
         prime_neovim(str(config["username"]))
         install_mpvpaper()
         install_backgrounds(str(config["username"]))
