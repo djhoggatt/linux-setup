@@ -916,6 +916,7 @@ def install_user_files(config: dict[str, object]) -> None:
         ("home/.local/bin/lock-screen", home / ".local" / "bin" / "lock-screen", 0o755),
         ("home/.local/bin/monitor-layout", home / ".local" / "bin" / "monitor-layout", 0o755),
         ("home/.local/bin/qutebrowser", home / ".local" / "bin" / "qutebrowser", 0o755),
+        ("home/.local/bin/sway-cycle-window.zig", home / ".local" / "bin" / "sway-cycle-window.zig", 0o644),
         ("home/.local/bin/screenshot-region", home / ".local" / "bin" / "screenshot-region", 0o755),
         ("home/.local/bin/waybar-audio-menu.zig", home / ".local" / "bin" / "waybar-audio-menu.zig", 0o644),
         (
@@ -964,6 +965,11 @@ def install_user_files(config: dict[str, object]) -> None:
         username,
         home / ".local" / "bin" / "waybar-power-menu.zig",
         home / ".local" / "bin" / "waybar-power-menu",
+    )
+    build_user_zig_tool(
+        username,
+        home / ".local" / "bin" / "sway-cycle-window.zig",
+        home / ".local" / "bin" / "sway-cycle-window",
     )
     build_sway_workspace_tool(username)
 

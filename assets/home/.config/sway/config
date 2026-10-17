@@ -65,8 +65,8 @@ bindsym --locked XF86AudioPrev exec wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@
 bindsym --locked XF86AudioMute exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 
 # Focus iteration
-bindsym Mod1+Tab focus next
-bindsym Mod1+Shift+Tab focus prev
+bindsym Mod1+Tab exec ~/.local/bin/sway-cycle-window next
+bindsym Mod1+Shift+Tab exec ~/.local/bin/sway-cycle-window prev
 
 # Workspace navigation.
 bindsym $mod+Up exec $HOME/.local/bin/sway-workspace up
