@@ -984,6 +984,7 @@ def prime_neovim(username: str) -> None:
 def enable_services(config: dict[str, object]) -> None:
     run(["systemctl", "enable", "NetworkManager.service"])
     run(["systemctl", "enable", "systemd-timesyncd.service"])
+    run(["systemctl", "enable", "fstrim.timer"])
     run(["systemctl", "enable", "sshd.service"])
     if bool(config.get("is_vm")):
         run(["systemctl", "enable", "vmtoolsd.service"], check=False)
